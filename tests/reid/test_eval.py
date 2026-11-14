@@ -122,3 +122,14 @@ def test_report_from_runs(tmp_path) -> None:
         "gallery_size.png",
         "roc_scores.png",
     }
+
+
+def test_make_folds_without_single_day_people() -> None:
+    inv, _ = make_dataset(n_multi=12, n_single=0)
+    folds = make_folds(inv, n_folds=3)["folds"]
+    assert sorted(p for f in folds for p in f["test"]) == sorted(
+        inv.participant_id.unique()
+    )
+    assert all(f["distractors"] == [] for f in folds)
+    inv, _ = make_dataset(n_multi=12, n_single=2)
+    assert sum(len(f["distractors"]) for f in make_folds(inv, 3)["folds"]) == 2

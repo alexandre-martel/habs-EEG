@@ -332,3 +332,41 @@ sur des données mises de côté.
 
 **Prochaine étape** : baseline 5 (réseau siamois), puis tout lancer sur les
 vraies données.
+
+---
+
+## 2026-11-15 — Étape 7 : baseline 5, réseau siamois (code seul)
+
+**Objectif** : tester si une projection non linéaire fait mieux que la LDA.
+
+**Ce qui a été fait** : `reid/baselines/b5_siamese.py` (`SiameseModel`,
+`supcon_loss`), 3 seeds enregistrées (`b5_siamese_s0..s2`), tests (la perte
+n'utilise que les positifs entre jours différents ; identité retrouvée sur
+synthétique). Correction de `make_folds` quand un groupe a moins de personnes
+que de plis.
+
+**Choix et pourquoi** :
+- Entrée = features standardisées de l'étape 5 (avant PCA) ; MLP
+  256 → 128 → 64, dropout 0,2, sortie normalisée L2.
+- SupCon : positifs = même personne, **jour différent** ; les paires même
+  personne + même jour sont retirées du dénominateur.
+- Lots : 32 personnes × 2 jours × 4 fenêtres. Augmentations : bruit gaussien,
+  masquage de blocs de modalité (p = 0,2), décalage par électrode sur le bloc
+  EEG (simule l'impédance).
+- Arrêt précoce (patience 30 itérations) sur les mêmes 20 % de personnes de
+  validation interne que la LDA. Résultat à rapporter = moyenne des 3 seeds.
+- `torch` n'est pas ajouté à `requirements.txt` : il est déjà dans l'image de la
+  plateforme.
+
+**Essai de bout en bout sur le vrai format de cache** : le fichier de P001
+dupliqué en 24 « personnes » × 2 jours, seule différence = un gain par
+électrode. Les 31 modèles tournent sans erreur. `abs` et covariances retrouvent
+l'identité, `rel`/`bands`/LDA sur `rel` sont au hasard, comme attendu (le
+spectre relatif annule les gains). **Nuance** : le contrôle « recentrage par
+session » reste à 1,00 dans ce cas. Blanchir une session par sa propre moyenne
+retire la moyenne mais laisse une rotation qui dépend des gains d'électrode :
+le recentrage n'efface pas forcément toute l'identité. À regarder sur les vraies
+données.
+
+**Prochaine étape** : code des ablations (étape 6), puis tout lancer dès que
+les données sont là.

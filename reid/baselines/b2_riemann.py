@@ -82,15 +82,17 @@ class RiemannModel:
     def fit(self, train: SessionSet) -> None:
         if self.metric != "tangent":
             return
+        slots = self._slots(train)
         self.spaces = []
-        for covs in self._slots(train):
+        for covs in slots:
             finite = np.isfinite(covs).all(axis=(1, 2))
             self.spaces.append(TangentSpace(metric="riemann").fit(covs[finite]))
-        self.scaler = Standardizer().fit(self._tangent(train))
+        self.scaler = Standardizer().fit(self._tangent(train, slots))
 
-    def _tangent(self, sessions: SessionSet) -> np.ndarray:
+    def _tangent(self, sessions: SessionSet, slots=None) -> np.ndarray:
         vecs = []
-        for space, covs in zip(self.spaces, self._slots(sessions), strict=True):
+        slots = self._slots(sessions) if slots is None else slots
+        for space, covs in zip(self.spaces, slots, strict=True):
             missing = ~np.isfinite(covs).all(axis=(1, 2))
             covs = covs.copy()
             covs[missing] = space.reference_  # -> zero tangent vector

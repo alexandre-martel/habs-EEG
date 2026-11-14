@@ -134,6 +134,11 @@ def make_folds(inv: pd.DataFrame, n_folds: int = 5, seed: int = SEED) -> dict:
         pids = group.index.to_numpy()
         strata = group.cohort.astype("string").fillna("?").to_numpy()
         counts = pd.Series(strata).value_counts()
+        if len(pids) < n_folds:  # too few people: shuffled round-robin
+            order = np.random.default_rng(seed).permutation(len(pids))
+            for j, i in enumerate(order):
+                folds[j % n_folds][key].append(str(pids[i]))
+            continue
         if counts.min() >= n_folds and len(counts) > 1:
             splitter = StratifiedKFold(n_folds, shuffle=True, random_state=seed)
         else:

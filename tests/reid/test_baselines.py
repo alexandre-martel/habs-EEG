@@ -143,3 +143,30 @@ def test_b3_lda_finds_identity_despite_day_gain(plda: bool) -> None:
     assert acc > 0.7 and acc >= b1, (acc, b1)
     acc, chance = top1(model, identity=0.0)
     assert acc < chance + 0.15
+
+
+def test_supcon_uses_cross_day_positives_only() -> None:
+    import torch
+    import torch.nn.functional as F
+
+    from reid.baselines.b5_siamese import supcon_loss
+
+    person = torch.tensor([0, 0, 0, 0, 1, 1, 1, 1])
+    day = torch.tensor([1, 1, 2, 2, 1, 1, 2, 2])
+    a, b, c, d = torch.eye(4)
+    # aligned across days within each person -> low loss
+    good = F.normalize(torch.stack([a, a, a, a, b, b, b, b]), dim=1)
+    # each person's two days point in different directions (session, not person)
+    bad = F.normalize(torch.stack([a, a, c, c, b, b, d, d]), dim=1)
+    assert supcon_loss(good, person, day) < supcon_loss(bad, person, day)
+
+
+def test_b5_siamese_finds_identity() -> None:
+    from reid.baselines.b3_lda_plda import ALL
+    from reid.baselines.b5_siamese import SiameseModel
+
+    def model():
+        return SiameseModel(ALL, epochs=60, patience=60, people_per_batch=16)
+
+    acc, _chance = top1(model, identity=1.0)
+    assert acc > 0.7, acc

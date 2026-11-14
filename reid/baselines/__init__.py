@@ -6,6 +6,8 @@ Every entry is a zero-argument factory returning a fresh ``ReIDModel``.
 from reid.baselines.b1_spectral_corr import CorrModel
 from reid.baselines.b2_riemann import FILTER_BANK, RiemannModel
 from reid.baselines.b3_lda_plda import ALL, LdaModel
+from reid.baselines.b5_siamese import SiameseModel
+from reid.config import SEED
 from reid.eval.controls import DemographicModel
 
 REST = {"ec": ("rest_ec",), "eo": ("rest_eo",), "ec+eo": ("rest_ec", "rest_eo")}
@@ -51,4 +53,17 @@ def _b3() -> dict:
     }
 
 
-MODELS = {"control_demographics": DemographicModel, **_b1(), **_b2(), **_b3()}
+def _b5() -> dict:
+    """Baseline 5 (optional): siamese MLP, three seeds (report their mean)."""
+    return {
+        f"b5_siamese_s{k}": lambda k=k: SiameseModel(seed=SEED + k) for k in range(3)
+    }
+
+
+MODELS = {
+    "control_demographics": DemographicModel,
+    **_b1(),
+    **_b2(),
+    **_b3(),
+    **_b5(),
+}
