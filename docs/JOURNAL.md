@@ -234,3 +234,28 @@ T9/T10 ; features lentes bruitées sur 10 s ; taille du cache estimée à enviro
 2 Go pour toutes les tâches.
 
 **Prochaine étape** : baselines 1 à 3.
+
+---
+
+## 2026-11-15 — Étape 2 : baseline 1, corrélation des spectres (code seul)
+
+**Objectif** : un plancher sans apprentissage, à battre par tout le reste.
+
+**Ce qui a été fait** : `reid/baselines/common.py` (assemblage des features,
+z-score, Pearson), `reid/baselines/b1_spectral_corr.py` (`CorrModel`), 9
+variantes EEG (`abs`/`rel`/`bands` × EC/EO/EC+EO) et 4 variantes « une modalité »
+pour l'étape 4 (`ecg`, `ecg_beat`, `eda`, `resp`), `tests/reid/test_baselines.py`
+avec un générateur synthétique au format du cache.
+
+**Choix et pourquoi** :
+- Spectre de session = log de la PSD moyenne des époques propres (pondérée par
+  le nombre d'époques par fenêtre), c'est-à-dire le Welch de toute la condition.
+- z-score avec les sessions d'entraînement du pli uniquement ; valeurs
+  manquantes → 0 après z-score (neutre pour la corrélation).
+- Le même `CorrModel` sert pour les autres modalités (moyenne des fenêtres).
+
+**Résultats** : pas encore de données réelles. Sur synthétique : top-1 > 0,8
+avec identité, hasard sans identité ; avec un fort gain d'électrode par jour,
+`rel` bat `abs`, comme attendu.
+
+**Prochaine étape** : baseline 2 (covariances riemanniennes).
