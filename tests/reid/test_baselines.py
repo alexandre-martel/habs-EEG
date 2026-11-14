@@ -38,3 +38,40 @@ def test_b1_other_modalities() -> None:
     acc, _ = top1(lambda: CorrModel(modalities=("ecg_beat",)), identity=1.0)
     assert acc > 0.8
     assert np.isfinite(acc)
+
+
+@pytest.mark.parametrize(
+    ("metric", "bands"),
+    [
+        ("tangent", ("broad",)),
+        ("airm", ("broad",)),
+        ("tangent", ("theta", "alpha", "beta")),
+    ],
+)
+def test_b2_riemann_finds_identity(metric: str, bands: tuple) -> None:
+    from reid.baselines.b2_riemann import RiemannModel
+
+    acc, chance = top1(lambda: RiemannModel(metric, bands), identity=1.0, day_gain=0.1)
+    assert acc > 0.8, (metric, bands, acc)
+    acc, chance = top1(lambda: RiemannModel(metric, bands), identity=0.0)
+    assert acc < chance + 0.15
+
+
+def test_b2_recentering_erases_identity() -> None:
+    from reid.baselines.b2_riemann import RiemannModel
+
+    plain, _ = top1(lambda: RiemannModel("tangent"), identity=1.0)
+    recentered, chance = top1(
+        lambda: RiemannModel("tangent", recenter=True), identity=1.0
+    )
+    assert recentered < plain and recentered < chance + 0.2
+
+
+def test_b2_tangent_resists_day_gain_better_than_airm() -> None:
+    """AIRM weighs every direction equally; the tangent z-score learns to
+    down-weight directions that vary with per-day electrode gains."""
+    from reid.baselines.b2_riemann import RiemannModel
+
+    airm, _ = top1(lambda: RiemannModel("airm"), identity=1.0, day_gain=0.3)
+    tangent, _ = top1(lambda: RiemannModel("tangent"), identity=1.0, day_gain=0.3)
+    assert tangent > airm

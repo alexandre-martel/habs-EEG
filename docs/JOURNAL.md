@@ -259,3 +259,37 @@ avec identité, hasard sans identité ; avec un fort gain d'électrode par jour,
 `rel` bat `abs`, comme attendu.
 
 **Prochaine étape** : baseline 2 (covariances riemanniennes).
+
+---
+
+## 2026-11-15 — Étape 3 : baseline 2, covariances riemanniennes (code seul)
+
+**Objectif** : tester si la structure spatiale de l'EEG (covariance entre
+électrodes, liée à la géométrie de la tête) identifie mieux que le spectre.
+
+**Ce qui a été fait** : `reid/baselines/b2_riemann.py` (`RiemannModel`), 13
+variantes (`airm`/`tangent` × large bande/filter bank × EC/EO/EC+EO, plus le
+contrôle `_recentered`), tests synthétiques.
+
+**Choix et pourquoi** :
+- Covariance de session = moyenne riemannienne des covariances de fenêtres
+  (elles-mêmes moyennes riemanniennes des époques OAS), par condition et par
+  bande.
+- `tangent` : point de référence et z-score appris sur les sessions
+  d'entraînement du pli uniquement.
+- `airm` : distances au carré sommées sur conditions × bandes.
+- Contrôle `_recentered` : chaque session est blanchie par sa propre
+  covariance moyenne. Il reste seulement le contraste EC/EO, et l'identité doit
+  disparaître.
+- Les 62 électrodes : la distance d'un pli complet (45 × 45) prend environ
+  0,2 s, donc pas besoin du sous-ensemble de 32 électrodes.
+
+**Résultats** (synthétiques) : les deux métriques retrouvent l'identité
+(top-1 = 1,0 sans gain par jour). Le recentrage l'efface. **Observation à
+vérifier sur les vraies données** : avec un gain d'électrode qui change d'un jour
+à l'autre (écart-type 0,3 en log10), `airm` tombe à 0,40 alors que `tangent`
+reste à 0,96. `airm` pèse toutes les directions de la même façon, alors que le
+z-score de l'espace tangent apprend à ignorer celles qui bougent avec
+l'impédance.
+
+**Prochaine étape** : baseline 3 (PCA + LDA, puis PLDA).

@@ -119,6 +119,7 @@ def make_feature_dataset(
                 "w_eeg_psd": np.array(psd),
                 "w_eeg_cov": np.array(cov),
                 "freqs": freqs,
+                "cov_bands": np.array(["broad", "theta", "alpha", "beta"]),
                 "w_ecg": np.c_[hr + rng.normal(size=(n, 1)), rng.normal(50, 5, (n, 2))],
                 "w_ecg_beat": beat + noise * rng.normal(size=(n, 128)),
                 "w_eda": slow[:2] + noise * rng.normal(size=(n, 2)),

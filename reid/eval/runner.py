@@ -56,8 +56,10 @@ def _score_folds(
         truth = truth_index(split.gallery.pids, split.probe.pids)
         one_to_one = set(split.gallery.pids) == set(split.probe.pids)
         blocks.append(metrics.Block(S, truth, one_to_one))
-        if hasattr(model, "embed"):  # kept for the cohort-predictability control
+        try:  # session embeddings, kept for the cohort-predictability control
             embeddings.append((model.embed(split.gallery), split.gallery.sessions))
+        except (AttributeError, NotImplementedError):
+            pass
     return blocks, embeddings
 
 
