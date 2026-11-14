@@ -185,3 +185,52 @@ courbe de taille de galerie limitée à la taille d'un pli.
 
 **Prochaine étape** : extraction des features (fin de l'étape 0), puis
 baselines.
+
+---
+
+## 2026-11-15 — Étape 0 (suite) : extraction des features en cache
+
+**Objectif** : calculer une fois pour toutes, par session, les features dont
+toutes les baselines ont besoin.
+
+**Ce qui a été fait** : `reid/segments.py` (sous-segments depuis
+`metadata.json`, lecture paresseuse des canaux utiles avec MNE),
+`reid/preprocess.py`, `reid/features/` (`eeg_psd`, `eeg_cov`, `ecg`, `eda`,
+`resp`, orchestrateur dans `__init__.py`), `scripts/reid_extract.py`,
+`process.py` + `reid_job.yaml`, `requirements.txt` (scikit-learn, pyriemann,
+neurokit2, pyyaml, matplotlib), `tests/reid/test_extract.py`.
+`habs run --data ./sample --out ./out` écrit `features/rest/P001_day-1.npz` et
+`features/artefact/P001_day-1.npz`.
+
+**Choix et pourquoi** :
+- **`process.py` remplacé** : l'exemple « puissance alpha » du template laisse
+  place à l'extraction pilotée par `reid_job.yaml` (tâches, modalités, shard
+  `i/n` pour rester sous une heure par job).
+- Lecture fenêtre par fenêtre avec `mne.io.read_raw_bdf(preload=False)` : on ne
+  charge jamais le DataFrame complet (indispensable pour les vidéos).
+- Fenêtres de 10 s dans chaque sous-segment : repos EO (3), EC (6), repos du bloc
+  artefact (12), une fenêtre par action de 5 s (7), un essai vidéo = une fenêtre.
+- EEG : **T9 et T10 exclus** (62 électrodes), comme dans `PREPROCESSED`. Chez
+  P001, T10 a une amplitude crête-à-crête médiane de 917 µV contre 65 µV pour
+  les autres électrodes. Il faisait monter le seuil de rejet à 1 316 µV ; sans
+  T9/T10, le seuil est de 276 µV et 3,7 % des époques sont rejetées.
+- Filtre Butterworth d'ordre 4 à phase nulle, avec 2 s de signal de part et
+  d'autre de chaque fenêtre pour absorber les effets de bord.
+- PSD : périodogramme de Hann par époque de 2 s, recouvrement 50 %, moyenne des
+  époques propres = Welch. Résolution 0,5 Hz, 1–45 Hz, en µV²/Hz.
+- Covariances OAS par époque et par bande (1–45, thêta, alpha, bêta), puis
+  moyenne riemannienne des époques propres de la fenêtre.
+- ECG, EDA, respiration : `neurokit2`, NaN en cas d'échec. EDA et respiration
+  utilisent ±10 s de contexte (une fenêtre de 10 s contient environ trois
+  respirations). L'unité de l'ECG étant douteuse, on n'utilise que des features
+  sans unité : FC, SDNN, RMSSD, battement moyen normalisé.
+
+**Résultats** (P001 jour 1) : repos 9 fenêtres en 1,8 s ; artefact 19 fenêtres
+en 4,2 s ; FC ≈ 80 bpm, respiration ≈ 18/min, EDA ≈ 2,4 µS. La fenêtre « tête
+haut-bas » n'a aucune époque propre (NaN), ce qui est attendu.
+
+**Limites / à vérifier** : pas de détection de canaux défectueux au-delà de
+T9/T10 ; features lentes bruitées sur 10 s ; taille du cache estimée à environ
+2 Go pour toutes les tâches.
+
+**Prochaine étape** : baselines 1 à 3.

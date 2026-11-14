@@ -16,6 +16,7 @@ regarde si la bonne session de galerie arrive en tête.
 ```python
 class ReIDModel(Protocol):
     name: str
+
     def fit(self, train: SessionSet) -> None: ...
     def score(self, gallery: SessionSet, probe: SessionSet) -> np.ndarray: ...
 ```
@@ -37,10 +38,12 @@ class ReIDModel(Protocol):
 ```python
 from reid.eval.interface import EmbeddingModel
 
+
 class MyEmbedding(EmbeddingModel):
     name = "jepa_v1"
-    def fit(self, train): ...                  # optionnel
-    def embed(self, sessions):                 # [n_sessions, d]
+
+    def fit(self, train): ...  # optionnel
+    def embed(self, sessions):  # [n_sessions, d]
         return np.stack([my_encoder(f) for f in sessions])
 ```
 
@@ -59,8 +62,10 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 from reid.eval.interface import ClassifierModel
 
-def band_power(feats):                         # [n_fenêtres, 64 * 45]
+
+def band_power(feats):  # [n_fenêtres, 62 * 89]
     return np.log10(feats["w_eeg_psd"]).reshape(len(feats["w_eeg_psd"]), -1)
+
 
 model = lambda: ClassifierModel(
     "logreg_psd",
@@ -79,9 +84,8 @@ from reid.eval.protocol import FeatureStore, load_folds
 from reid.eval.runner import evaluate
 from reid.inventory import load_inventory
 
-inv = load_inventory("./data")       # joint cohorte/âge/genre depuis les tables
-run = evaluate(model, inv, load_folds(), "d1_to_d2", task="rest",
-               store=FeatureStore())
+inv = load_inventory("./data")  # joint cohorte/âge/genre depuis les tables
+run = evaluate(model, inv, load_folds(), "d1_to_d2", task="rest", store=FeatureStore())
 ```
 
 `model` est une **fabrique** (fonction sans argument, ou la classe) : un modèle

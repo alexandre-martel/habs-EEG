@@ -27,6 +27,9 @@ EPOCH_S = 2.0  # EEG epochs inside a window, 50 % overlap
 PAD_S = 2.0  # read this much signal around each window to absorb filter edges
 
 #: EEG preprocessing: band-pass below the 50 Hz mains line, average reference.
+#: T9/T10 are excluded, as in the dataset's own PREPROCESSED pipeline (on P001,
+#: T10 has 14x the median peak-to-peak amplitude of the other electrodes).
+EEG_EXCLUDE = ("T9", "T10")
 EEG_BAND = (1.0, 45.0)
 PSD_FMAX = 45.0
 BANDS = {
