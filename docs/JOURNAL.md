@@ -1,0 +1,116 @@
+# Journal — ré-identification jour 1 → jour 2
+
+## Cadre éthique
+
+On apparie uniquement des sessions **à l'intérieur du dataset** : retrouver,
+parmi les sessions du jour 2, celle qui appartient à chaque identifiant
+pseudonymisé du jour 1. On ne cherche jamais à relier un participant à une
+identité extérieure au dataset. L'angle du projet est de montrer que *les
+données neurophysiologiques se comportent comme une donnée biométrique*, donc
+qu'une pseudonymisation par identifiant ne suffit pas à les protéger.
+
+Conditions d'accès au dataset (Hugging Face) : pas de tentative de
+ré-identification des participants, pas de redistribution d'enregistrements ni
+de dérivés permettant d'identifier un participant, suppression de la copie à la
+fin du projet. Le dépôt GitHub est **public**. Conséquences pour le dépôt :
+
+- on ne commite ni données, ni features, ni embeddings, ni matrices de scores
+  par participant (`data/`, `cache/`, `out/`, `*.npz`, `*.parquet` ignorés) ;
+- `results/inventory.csv` ne contient pas l'âge ni le genre : ils sont relus
+  depuis `participants_train.csv` au moment de l'évaluation ;
+- on ne commite que des métriques agrégées, des splits (identifiants
+  pseudonymisés, déjà publics dans la liste des fichiers) et des figures
+  agrégées ;
+- le contrôle « candidats doublons » (identifiants différents, même personne)
+  ressemble à de la mise en relation d'enregistrements : **à faire valider par
+  HABS avant de le lancer**, et sa sortie ne sera jamais commitée.
+
+## Environnement
+
+Python 3.12 (`uv venv --python 3.12 .venv`), `requirements.txt`, plus pour le
+développement : `scikit-learn==1.9.1 matplotlib==3.10.8 pytest==9.2.0
+ruff==0.17.5 huggingface_hub==2.4.0`. Tests : `.venv/bin/python -m pytest tests/reid`.
+
+---
+
+## 2026-11-14 — Étape 0 : inventaire
+
+**Objectif** : connaître la taille réelle du problème avant d'écrire du code
+d'évaluation.
+
+**Ce qui a été fait** : branche `reid/baselines`, arborescence du projet
+(modules vides avec docstring), `reid/config.py`, `reid/inventory.py`,
+`scripts/reid_inventory.py`, `tests/reid/test_inventory.py` (5 tests).
+L'inventaire se construit depuis un dossier local (`--data`, lit les
+`metadata.json`) ou depuis la liste publique des fichiers Hugging Face (`--hf`,
+noms et tailles uniquement, sans authentification). `results/inventory.csv`
+vient de la liste HF : cohorte et protocole inconnus tant que les tables ne sont
+pas téléchargées ; durées estimées à partir de la taille des BDF
+(`duration_source = bdf_size`, ajustement linéaire calé sur les deux BDF de P001).
+
+**Choix et pourquoi** :
+- âge et genre retirés de l'inventaire (dépôt public, voir le cadre éthique) ;
+- durées estimées depuis la taille des fichiers : suffisant pour planifier
+  (repérer les sessions de repos tronquées), remplacé par les durées exactes
+  des `metadata.json` après téléchargement ;
+- jeu de données par défaut : `CURATED` + notre propre prétraitement.
+  `PREPROCESSED` (documenté dans `docs/Dataset_Paper.pdf`, section
+  Preprocessing) retire T9/T10, filtre 0,5–48 Hz, référence moyenne, puis ICA
+  Picard + ICLabel avec rejet des composantes oculaires (p ≥ 0,75) et
+  musculaires / bruit de ligne / bruit de canal (p ≥ 0,90). Le nombre de
+  composantes retirées varie selon la session, ce qui peut créer ou effacer de
+  l'information propre à la session. À garder comme ablation, pas comme défaut.
+
+**Résultats** (liste HF, `CURATED`) : 355 participants, 596 sessions.
+
+| jours disponibles | 1 | 2 | 1+2 | 1+3 | 2+3 | 1+2+3 |
+|---|---|---|---|---|---|---|
+| personnes | 75 | 61 | 191 | 4 | 2 | 22 |
+
+Soit 136 personnes à un seul jour et 219 à au moins deux jours.
+
+| scénario | repos sur les deux jours | artefact | vidéo | au moins une tâche |
+|---|---|---|---|---|
+| d1 → d2 | 208 | **0** | 213 | 213 |
+| d1 → d3 | 22 | 0 | 26 | 26 |
+| d2 → d3 | 23 | 0 | 24 | 24 |
+
+Hasard top-1 pour d1 → d2 avec une galerie complète : 1/213 ≈ 0,5 %.
+
+**Écarts avec le cahier des charges** :
+- 355 participants / 596 sessions dans la release, contre 383 / 690 dans le
+  papier : la différence correspond aux 29 participants held-out (sans
+  enregistrements). `PREPROCESSED` en compte 354.
+- **Le bloc artefact n'existe qu'une fois par personne** (222 sessions : 190 au
+  jour 1, 32 au jour 2, jamais aux deux). Pas de comparaison artefact → artefact
+  entre jours : ce bloc ne peut servir qu'en transfert entre tâches (par ex.
+  repos EO du bloc artefact contre repos du jour suivant) ou comme données
+  d'entraînement.
+- 6 sessions sans repos (4 au jour 1 avec artefact + vidéo, 2 avec vidéo seule).
+- 61 personnes n'ont que le jour 2. Hypothèse : leur jour 1 n'a pas été publié.
+  À ne pas creuser par appariement (voir le cadre éthique).
+- Durées de repos : 91–99 s (médiane 95,6 s), donc les 30 s EO et 60 s EC sont
+  normalement complètes ; 8 sessions sous 92 s à vérifier.
+- Sur P001 (vérifié sur les BDF) : 84 colonnes, 64 EEG en µV, ECG en « mV »,
+  Resp en AU, GSR en µS après conversion, 17 colonnes d'oculométrie stockées à
+  166 Hz (fréquence effective 166,36 Hz, ~83 % de NaN sur la grille 1 kHz, ce qui
+  est normal). Distance inter-oculaire : médiane 63,00 mm, écart interquartile
+  0,07 mm (repos) et 0,04 mm (artefact). Confirmé.
+- **Unité de l'ECG suspecte** : écart-type de 156 « mV » au repos (un ECG fait
+  environ 1 mV). Probablement des µV ou des unités brutes : à vérifier avant les
+  features d'amplitude (le battement moyen sera normalisé de toute façon).
+- Repos de P001 : 10002 (30 s, yeux ouverts *sans cligner*) au début du segment,
+  puis 10004 (60 s, yeux fermés) à +35,1 s. Artefact : 10000 (60 s) ×2 et
+  10006–10018 (5 s). Codes conformes au cahier des charges sur P001 ; stabilité
+  entre cohortes à vérifier sur les `metadata.json`.
+
+**Interprétation** : le scénario principal d1 → d2 porte sur environ
+210 personnes avec repos et vidéo. Les scénarios avec le jour 3 sont petits
+(environ 25 personnes) : IC larges attendus.
+
+**Limites / à vérifier** : cohortes inconnues tant que `participants_train.csv`
+n'est pas téléchargé (accès HF non encore accordé sur cette machine) ; durées
+estimées.
+
+**Prochaine étape** : télécharger tables + `metadata.json` + repos + artefact,
+régénérer l'inventaire avec `--data ./data`, puis étape 1 (pipeline d'évaluation).
