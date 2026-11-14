@@ -181,20 +181,26 @@ def build_split(
     task: str = "rest",
     probe_task: str | None = None,
     store: FeatureStore | None = None,
+    part: str | None = None,
 ) -> Split:
     """Train / gallery / probe sets of one fold for one scenario.
 
     ``task`` is the gallery (and training) task; ``probe_task`` defaults to it
     and allows cross-task transfer (e.g. gallery = rest, probe = video).
+    ``part`` restricts gallery and probe windows (e.g. ``first_20s``, see
+    ``select_windows``); training sessions keep all their windows.
     """
     g_day, p_day = SCENARIOS[scenario]
     probe_task = probe_task or task
     held = set(fold["test"]) | set(fold["distractors"])
     test = set(fold["test"])
 
-    train = _sessions(inv[~inv.participant_id.isin(held)], task, store)
+    others = inv[~inv.participant_id.isin(held)]
+    train = _sessions(others, task, store)
+    if probe_task != task:  # cross-task: the model may learn from both tasks
+        train = pd.concat([train, _sessions(others, probe_task, store)])
     halves = (
-        ("first_half", "second_half") if scenario == "same_day_ceiling" else (None,) * 2
+        ("first_half", "second_half") if scenario == "same_day_ceiling" else (part,) * 2
     )
     gal = _sessions(inv[inv.day == g_day], task, store, halves[0])
     prb = _sessions(inv[inv.day == p_day], probe_task, store, halves[1])

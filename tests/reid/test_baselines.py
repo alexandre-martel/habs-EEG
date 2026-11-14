@@ -170,3 +170,32 @@ def test_b5_siamese_finds_identity() -> None:
 
     acc, _chance = top1(model, identity=1.0)
     assert acc > 0.7, acc
+
+
+def test_ablations_and_their_figures(tmp_path) -> None:
+    import json
+
+    from reid.baselines.b4_ablations import run
+    from reid.eval.report import write_report
+
+    inv, store = make_feature_dataset(identity=1.0)
+    folds = make_folds(inv, n_folds=3)["folds"]
+    records = []
+    for kind in ("modality", "task", "duration"):
+        records += run(kind, "b1", inv, folds, store, n_boot=50, save=False)
+    labels = {r["label"] for r in records}
+    assert {"only_eeg", "minus_eeg", "rest_ec", "rest_eo", "rest_10s"} <= labels
+    assert "video" not in labels  # no video in the synthetic data: skipped
+    short = next(r for r in records if r["label"] == "rest_10s")
+    full = next(r for r in records if r["label"] == "rest_60s")
+    assert short["pooled"]["top1"]["value"] <= full["pooled"]["top1"]["value"] + 0.05
+    (tmp_path / "runs").mkdir()
+    for i, r in enumerate(records):
+        (tmp_path / "runs" / f"{i}.json").write_text(json.dumps(r, default=float))
+    write_report(tmp_path)
+    names = {p.name for p in (tmp_path / "figures").iterdir()}
+    assert {
+        "ablation_modality_b1.png",
+        "ablation_duration_b1.png",
+        "ablation_task_b1.png",
+    } <= names

@@ -370,3 +370,37 @@ données.
 
 **Prochaine étape** : code des ablations (étape 6), puis tout lancer dès que
 les données sont là.
+
+---
+
+## 2026-11-15 — Étape 6 : ablations (code seul)
+
+**Objectif** : produire les figures principales du papier (modalité, tâche,
+durée, émotion) avec la meilleure méthode, quand les données seront là.
+
+**Ce qui a été fait** : `reid/baselines/b4_ablations.py`,
+`scripts/reid_ablations.py`, figures d'ablation dans `reid/eval/report.py`
+(heatmap modalités, barres tâches/arousal, courbe durée), paramètre `part`
+(N premières secondes de la galerie et de la probe) et conditions qui dépendent
+de la tâche dans le pipeline. Test de bout en bout sur synthétique.
+
+**Choix et pourquoi** :
+- Durée = N premières secondes **de chaque condition**, en galerie comme en
+  probe (repos : 10/20/30/60 s ; vidéo : 10 à 360 s). L'entraînement garde
+  toutes ses fenêtres.
+- Transfert entre tâches : l'entraînement voit les deux tâches. Sans cela, la
+  LDA n'aurait aucune personne avec le bloc artefact sur deux jours.
+- Repos EO du bloc artefact (jour 1) → repos EO du jour 2 : seul usage possible
+  du bloc artefact entre deux jours. **Les actions (clignements, saccades,
+  mâchoire, déglutition) ne peuvent pas être comparées d'un jour à l'autre** :
+  le bloc n'existe qu'un jour par personne.
+- Arousal : découpage à la médiane de chaque session (les échelles diffèrent
+  entre cohortes : entiers en cohorte 1, continu ailleurs), essais repérés par
+  `start_marker`.
+
+**Limites / à vérifier** : la correspondance `start_marker` ↔ `w_marker` et le
+format de la colonne `day` de `labels_train.csv` sont à vérifier sur les vraies
+tables.
+
+**Prochaine étape** : données → inventaire exact → `folds.json` → extraction →
+lancer les baselines.

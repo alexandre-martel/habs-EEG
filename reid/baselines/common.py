@@ -16,6 +16,14 @@ CONDITIONS = {
 SLOW_KEYS = {"ecg": "w_ecg", "ecg_beat": "w_ecg_beat", "eda": "w_eda", "resp": "w_resp"}
 
 
+def resolve(conditions, feats: dict):
+    """Conditions may depend on the task: ``{"rest": (...), "artefact": (...)}``
+    (used for cross-task matching, e.g. rest EO vs artefact-block EO)."""
+    if isinstance(conditions, dict):
+        return conditions[str(feats["task"])]
+    return conditions
+
+
 def _select(feats: dict, condition: str | None) -> np.ndarray:
     """Window mask of a condition (``None`` = every window)."""
     cond = feats["w_condition"]
@@ -29,7 +37,7 @@ def session_vector(
     epoch-weighted mean PSD (EEG) and the mean of the other modalities' window
     features. Missing condition or modality -> NaN entries."""
     parts = []
-    for condition in conditions or (None,):
+    for condition in resolve(conditions, feats) or (None,):
         mask = _select(feats, condition)
         for modality in modalities:
             if modality == "eeg":
@@ -58,7 +66,7 @@ def window_matrix(
     """[n_windows, d]: per-window features of the selected conditions; windows
     without a clean EEG epoch are dropped when EEG is used."""
     mask = np.zeros(len(feats["w_condition"]), bool)
-    for condition in conditions or (None,):
+    for condition in resolve(conditions, feats) or (None,):
         mask |= _select(feats, condition)
     blocks = []
     for modality in modalities:

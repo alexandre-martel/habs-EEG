@@ -34,14 +34,14 @@ def _score_folds(
     inv: pd.DataFrame,
     folds: list[dict],
     scenario: str,
-    task: str,
-    probe_task: str | None,
     store: FeatureStore | None,
+    **split_kw,
 ) -> tuple[list[metrics.Block], list[tuple[np.ndarray, pd.DataFrame]]]:
-    """Fit and score every fold. Returns blocks and gallery embeddings (if any)."""
+    """Fit and score every fold. Returns blocks and gallery embeddings (if any).
+    ``split_kw``: task, probe_task, part (see ``build_split``)."""
     blocks, embeddings = [], []
     for fold in folds:
-        split = build_split(inv, fold, scenario, task, probe_task, store)
+        split = build_split(inv, fold, scenario, store=store, **split_kw)
         if not len(split.probe):
             continue
         _check_no_leak(split)
@@ -91,11 +91,16 @@ def evaluate(
     n_boot: int = 1000,
     run_controls: bool = True,
     save: bool = True,
+    part: str | None = None,
+    extra: dict | None = None,
 ) -> dict:
-    """Run one model on one scenario; returns (and saves) the run record."""
+    """Run one model on one scenario; returns (and saves) the run record.
+    ``part`` restricts gallery/probe windows; ``extra`` is stored in the record
+    (e.g. ablation labels)."""
     start = time.time()
+    split_kw = {"task": task, "probe_task": probe_task, "part": part}
     blocks, embeddings = _score_folds(
-        make_model, inv, folds, scenario, task, probe_task, store
+        make_model, inv, folds, scenario, store, **split_kw
     )
     if not blocks:
         raise ValueError(f"no probe session for scenario {scenario!r} / task {task!r}")
@@ -106,6 +111,8 @@ def evaluate(
         "scenario": scenario,
         "task": task,
         "probe_task": probe_task or task,
+        "part": part,
+        **(extra or {}),
         "date": datetime.now().isoformat(timespec="seconds"),
         "git": _git_hash(),
         "seed": SEED,
@@ -118,7 +125,7 @@ def evaluate(
         record["gallery_size"] = metrics.gallery_size_curve(blocks)
     if run_controls:
         record["controls"] = _controls(
-            blocks, embeddings, inv, folds, scenario, task, probe_task, store, name
+            blocks, embeddings, inv, folds, scenario, split_kw
         )
     record["time_s"] = round(time.time() - start, 1)
     record["versions"] = _versions()
@@ -127,7 +134,7 @@ def evaluate(
     return record
 
 
-def _controls(blocks, embeddings, inv, folds, scenario, task, probe_task, store, name):
+def _controls(blocks, embeddings, inv, folds, scenario, split_kw):
     """Shuffled identities, demographics, cohort predictability."""
     shuffled = [
         metrics.Block(controls.shuffle_gallery(b.S, SEED + k), b.truth, b.one_to_one)
@@ -136,7 +143,7 @@ def _controls(blocks, embeddings, inv, folds, scenario, task, probe_task, store,
     out = {"shuffled": _short(metrics.summarize(shuffled, n_boot=200))}
     if "age" in inv and inv.age.notna().any():
         demo, _ = _score_folds(
-            controls.DemographicModel, inv, folds, scenario, task, probe_task, None
+            controls.DemographicModel, inv, folds, scenario, None, **split_kw
         )
         out["demographics"] = _short(metrics.summarize(demo, n_boot=200))
     if embeddings and "cohort" in inv and inv.cohort.notna().any():
@@ -156,13 +163,14 @@ def _short(summary: dict) -> dict:
 
 
 def save_run(record: dict) -> None:
-    """results/runs/<date>_<model>_<scenario>[_<task>].json"""
+    """results/runs/<date>_<model>_<scenario>_<task>[_<part>].json"""
     runs = RESULTS / "runs"
     runs.mkdir(parents=True, exist_ok=True)
     tasks = record["task"] + (
         f"-to-{record['probe_task']}" if record["probe_task"] != record["task"] else ""
     )
     stamp = record["date"].replace(":", "").replace("-", "")
-    path = runs / f"{stamp}_{record['model']}_{record['scenario']}_{tasks}.json"
+    part = f"_{record['part']}" if record.get("part") else ""
+    path = runs / f"{stamp}_{record['model']}_{record['scenario']}_{tasks}{part}.json"
     path.write_text(json.dumps(record, indent=1, default=float))
     print(f"run saved -> {path.relative_to(RESULTS.parent)}")

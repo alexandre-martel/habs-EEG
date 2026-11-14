@@ -32,7 +32,12 @@ class CorrModel:
             conditions,
             eeg_kind,
         )
-        conds = "+".join(SHORT.get(c, c) for c in conditions) if conditions else "all"
+        flat = (
+            sorted({c for v in conditions.values() for c in v})
+            if isinstance(conditions, dict)
+            else conditions
+        )
+        conds = "+".join(SHORT.get(c, c) for c in flat) if flat else "all"
         mods = "+".join(modalities)
         self.name = (
             f"{prefix}_{eeg_kind}_{conds}"

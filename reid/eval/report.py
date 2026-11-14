@@ -9,6 +9,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 
 from reid.config import RESULTS
@@ -40,7 +41,9 @@ def load_runs(runs_dir: Path = RESULTS / "runs") -> list[dict]:
     runs = [json.loads(p.read_text()) for p in sorted(runs_dir.glob("*.json"))]
     latest = {}
     for r in sorted(runs, key=lambda r: r["date"]):
-        latest[(r["model"], r["scenario"], r["task"], r["probe_task"])] = r
+        latest[
+            (r["model"], r["scenario"], r["task"], r["probe_task"], r.get("part"))
+        ] = r
     return list(latest.values())
 
 
@@ -79,6 +82,8 @@ def leaderboard(runs: list[dict]) -> pd.DataFrame:
         row["top1_fold_sd"] = pd.Series(
             [f["top1"]["value"] for f in r["per_fold"]]
         ).std()
+        row["ablation"], row["label"] = r.get("ablation"), r.get("label")
+        row["seconds"] = r.get("seconds")
         row["date"], row["git"] = r["date"], r["git"][:8]
         rows.append(row)
     board = pd.DataFrame(rows)
@@ -87,10 +92,8 @@ def leaderboard(runs: list[dict]) -> pd.DataFrame:
     )
 
 
-def bar_top1(board: pd.DataFrame, scenario: str, task: str, out: Path) -> None:
-    """Top-1 with 95 % CI per model, with chance and demographic-control lines."""
-    sub = board[(board.scenario == scenario) & (board.task == task)]
-    sub = sub[~sub.model.str.startswith("control_")].sort_values("top1")
+def _bars(sub: pd.DataFrame, labels: str, title: str, out: Path) -> None:
+    """Horizontal top-1 bars with 95 % CI, chance and demographic-control lines."""
     if sub.empty:
         return
     fig, ax = plt.subplots(figsize=(6, 0.35 * len(sub) + 1.2))
@@ -104,7 +107,7 @@ def bar_top1(board: pd.DataFrame, scenario: str, task: str, out: Path) -> None:
         xerr=err,
         error_kw={"ecolor": INK_2, "elinewidth": 1, "capsize": 2},
     )
-    ax.set_yticks(list(y), sub.model)
+    ax.set_yticks(list(y), sub[labels])
     ax.axvline(sub.chance_top1.mean(), color=INK_2, ls="--", lw=1, label="chance")
     demo = sub.demographics_top1.dropna()
     if len(demo):
@@ -112,8 +115,86 @@ def bar_top1(board: pd.DataFrame, scenario: str, task: str, out: Path) -> None:
     ax.legend(frameon=False, loc="lower right")
     ax.set_xlim(0, 1)
     ax.set_xlabel("top-1 accuracy (95 % CI over people)")
-    ax.set_title(f"{scenario} · {task}", loc="left", color=INK)
+    ax.set_title(title, loc="left", color=INK)
     ax.grid(axis="y", visible=False)
+    fig.tight_layout()
+    fig.savefig(out, dpi=200)
+    plt.close(fig)
+
+
+def bar_top1(board: pd.DataFrame, scenario: str, task: str, out: Path) -> None:
+    """Top-1 per model (ablation runs and controls excluded)."""
+    sub = board[(board.scenario == scenario) & (board.task == task)]
+    sub = sub[~sub.model.str.startswith(("control_", "abl_"))].sort_values("top1")
+    _bars(sub, "model", f"{scenario} · {task}", out)
+
+
+def ablation_figures(board: pd.DataFrame, figures: Path) -> None:
+    """One figure per (ablation kind, method): heatmap for modalities, curve for
+    durations, bars otherwise. Ablation model names are abl_<method>_<label>."""
+    abl = board.dropna(subset=["ablation"])
+    if abl.empty:
+        return
+    method = [
+        m[len("abl_") : -len(lab) - 1]
+        for m, lab in zip(abl.model, abl.label, strict=True)
+    ]
+    for (kind, meth), sub in abl.assign(method=method).groupby(["ablation", "method"]):
+        out = figures / f"ablation_{kind}_{meth}.png"
+        if kind == "modality":
+            _modality_heatmap(sub, f"{meth} · modality ablation", out)
+        elif kind == "duration":
+            _duration_curve(sub, f"{meth} · top-1 vs recording duration", out)
+        else:
+            _bars(sub.sort_values("top1"), "label", f"{meth} · {kind}", out)
+
+
+def _modality_heatmap(sub: pd.DataFrame, title: str, out: Path) -> None:
+    """Rows: modality alone / all modalities but this one; cells: top-1."""
+    parts = sub.label.str.split("_", n=1, expand=True)
+    table = sub.assign(mode=parts[0], modality=parts[1]).pivot_table(
+        index="mode", columns="modality", values="top1"
+    )
+    fig, ax = plt.subplots(figsize=(1.2 * table.shape[1] + 1.8, 2.4))
+    im = ax.imshow(table.to_numpy(), cmap="Blues", vmin=0, vmax=1, aspect="auto")
+    ax.set_xticks(range(table.shape[1]), table.columns)
+    names = {"only": "this modality only", "minus": "all but this one"}
+    ax.set_yticks(range(table.shape[0]), [names.get(m, m) for m in table.index])
+    for (i, j), v in np.ndenumerate(table.to_numpy()):
+        if np.isfinite(v):
+            ax.text(
+                j,
+                i,
+                f"{v:.2f}",
+                ha="center",
+                va="center",
+                color="white" if v > 0.6 else INK,
+            )
+    ax.grid(False)
+    ax.set_title(title, loc="left", color=INK)
+    fig.colorbar(im, ax=ax, label="top-1")
+    fig.tight_layout()
+    fig.savefig(out, dpi=200)
+    plt.close(fig)
+
+
+def _duration_curve(sub: pd.DataFrame, title: str, out: Path) -> None:
+    """Top-1 vs seconds kept per condition, one line per task, with CI band."""
+    fig, ax = plt.subplots(figsize=(5, 3.5))
+    for color, (task, g) in zip(SERIES, sub.groupby("task"), strict=False):
+        g = g.sort_values("seconds")
+        ax.plot(g.seconds, g.top1, color=color, lw=2, marker="o", ms=4, label=task)
+        ax.fill_between(g.seconds, g.top1_lo, g.top1_hi, color=color, alpha=0.15, lw=0)
+    ax.axhline(sub.chance_top1.mean(), color=INK_2, ls="--", lw=1, label="chance")
+    ax.set_xscale("log")
+    ticks = sorted(sub.seconds.unique())
+    ax.set_xticks(ticks, [f"{t:g}" for t in ticks])
+    ax.minorticks_off()
+    ax.set_ylim(0, 1)
+    ax.set_xlabel("seconds per condition (gallery and probe)")
+    ax.set_ylabel("top-1 accuracy")
+    ax.set_title(title, loc="left", color=INK)
+    ax.legend(frameon=False)
     fig.tight_layout()
     fig.savefig(out, dpi=200)
     plt.close(fig)
@@ -207,4 +288,5 @@ def write_report(results: Path = RESULTS) -> pd.DataFrame:
         bar_top1(board, scenario, task, figures / f"top1_{scenario}_{task}.png")
     gallery_curve(runs, figures / "gallery_size.png")
     roc_and_scores(runs, figures / "roc_scores.png")
+    ablation_figures(board, figures)
     return board

@@ -132,3 +132,16 @@ personne.
   plus loin, il faut moins de plis (`--n-folds 2` → environ 106 personnes).
 - Le bloc artefact n'existe qu'un jour par personne : pas de scénario
   artefact → artefact entre jours.
+
+## Ablations (étape 6)
+
+```bash
+python scripts/reid_ablations.py --method b3_lda --modalities all --what all
+python scripts/reid_report.py     # results/figures/ablation_*.png
+```
+
+`--method` ∈ `b1`, `b3_lda`, `b3_plda`, `b5`. Familles : `modality` (seule /
+toutes sauf une), `task` (EC, EO, vidéo, repos + vidéo, repos → vidéo, repos EO
+du bloc artefact → repos EO du jour suivant), `duration` (N premières secondes
+de chaque condition), `arousal` (essais vidéo sous / au-dessus de la médiane
+d'arousal de la session, lue dans `labels_train.csv`).
