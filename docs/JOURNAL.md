@@ -293,3 +293,42 @@ z-score de l'espace tangent apprend à ignorer celles qui bougent avec
 l'impédance.
 
 **Prochaine étape** : baseline 3 (PCA + LDA, puis PLDA).
+
+---
+
+## 2026-11-15 — Étape 5 : baseline 3, PCA + LDA puis PLDA (code seul)
+
+**Objectif** : apprendre à ignorer ce qui change d'un jour à l'autre.
+
+**Ce qui a été fait** : `reid/baselines/b3_lda_plda.py` (`LdaModel`,
+`TwoCovPLDA`), 4 variantes (`b3_lda_eeg`, `b3_lda_all`, `b3_plda_eeg`,
+`b3_plda_all`), tests synthétiques dont une vérification de la PLDA contre la
+log-vraisemblance calculée par force brute (`scipy.stats.multivariate_normal`).
+
+**Choix et pourquoi** :
+- Entrée par fenêtre de 10 s : spectre EEG relatif (62 × 89), ECG (3 + battement
+  moyen 128), EDA (2), respiration (3), soit 5 654 features. Imputation par la
+  médiane → standardisation → PCA → LDA (`eigen`, `shrinkage="auto"`), une
+  classe par personne d'entraînement **ayant au moins deux jours**.
+- Nombre de composantes PCA (32/64/128/256) choisi par validation interne :
+  20 % des personnes d'entraînement ayant les jours 1 et 2, top-1 jour 1 →
+  jour 2.
+- Embedding de session = moyenne des projections de ses fenêtres → cosinus.
+- PLDA à deux covariances ajustée sur les embeddings de session des personnes
+  d'entraînement (moments : W intra-personne, B = covariance des moyennes − W/n),
+  normalisation de longueur, score = log-rapport de vraisemblance exact.
+  Log-déterminants par Cholesky (numpy/Accelerate émettait de faux warnings avec
+  `slogdet`).
+- Un ajustement PCA 256 + LDA à la taille réelle prend environ 1,6 s.
+
+**Résultats** (synthétiques) : la PLDA bat nettement le cosinus quand le bruit
+de session est concentré là où les personnes ne diffèrent pas. Avec un fort gain
+par jour, la LDA fait au moins aussi bien que la baseline 1 `abs`.
+
+**Limites / à vérifier** : la PLDA est ajustée sur les embeddings des sessions
+qui ont servi à la LDA, ce qui sous-estime W (biais classique, aussi présent en
+vérification du locuteur). Si c'est gênant, il faudra l'ajuster sur la PCA ou
+sur des données mises de côté.
+
+**Prochaine étape** : baseline 5 (réseau siamois), puis tout lancer sur les
+vraies données.

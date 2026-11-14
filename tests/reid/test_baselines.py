@@ -75,3 +75,71 @@ def test_b2_tangent_resists_day_gain_better_than_airm() -> None:
     airm, _ = top1(lambda: RiemannModel("airm"), identity=1.0, day_gain=0.3)
     tangent, _ = top1(lambda: RiemannModel("tangent"), identity=1.0, day_gain=0.3)
     assert tangent > airm
+
+
+def test_plda_score_matches_brute_force_llr() -> None:
+    from scipy.stats import multivariate_normal as mvn
+
+    from reid.baselines.b3_lda_plda import TwoCovPLDA
+
+    rng = np.random.default_rng(0)
+    d, n_people = 4, 400
+    y = rng.normal(size=(n_people, d)) * [2.0, 1.0, 0.5, 0.2]
+    X = np.repeat(y, 3, axis=0) + rng.normal(size=(3 * n_people, d)) * [
+        0.3,
+        0.5,
+        1.0,
+        1.5,
+    ]
+    plda = TwoCovPLDA(length_norm=False).fit(X, np.repeat(np.arange(n_people), 3))
+    x1, x2 = X[:2] - plda.mu, X[3:5] - plda.mu
+    T, B = plda.B + plda.W, plda.B
+    joint = mvn(np.zeros(2 * d), np.block([[T, B], [B, T]]))
+    for a in x1:
+        for b in x2:
+            brute = (
+                joint.logpdf(np.r_[a, b])
+                - mvn(np.zeros(d), T).logpdf(a)
+                - mvn(np.zeros(d), T).logpdf(b)
+            )
+            got = plda.score((a + plda.mu)[None], (b + plda.mu)[None])[0, 0]
+            assert got == pytest.approx(brute, rel=1e-6, abs=1e-6)
+
+
+def test_plda_beats_cosine_with_anisotropic_session_noise() -> None:
+    """Session noise concentrated where people do not differ: PLDA learns to
+    ignore it, cosine cannot."""
+    from reid.baselines.b3_lda_plda import TwoCovPLDA
+    from reid.eval.interface import cosine
+    from reid.eval.matching import rank_counts, topk
+
+    rng = np.random.default_rng(1)
+    d = 10
+    person_sd = np.r_[np.ones(5), 0.05 * np.ones(5)]
+    session_sd = np.r_[0.3 * np.ones(5), 3.0 * np.ones(5)]
+    y_train = rng.normal(size=(300, d)) * person_sd
+    X_train = np.repeat(y_train, 2, axis=0) + rng.normal(size=(600, d)) * session_sd
+    plda = TwoCovPLDA(length_norm=False).fit(X_train, np.repeat(np.arange(300), 2))
+    y = rng.normal(size=(50, d)) * person_sd
+    g = y + rng.normal(size=y.shape) * session_sd
+    p = y + rng.normal(size=y.shape) * session_sd
+    truth = np.arange(50)
+    acc = {
+        name: topk(*rank_counts(S, truth), 1).mean()
+        for name, S in (("plda", plda.score(p, g)), ("cosine", cosine(p, g)))
+    }
+    assert acc["plda"] > acc["cosine"] + 0.2, acc
+
+
+@pytest.mark.parametrize("plda", [False, True])
+def test_b3_lda_finds_identity_despite_day_gain(plda: bool) -> None:
+    from reid.baselines.b3_lda_plda import ALL, LdaModel
+
+    def model():
+        return LdaModel(ALL, n_components=(16, 32), plda=plda)
+
+    acc, chance = top1(model, identity=0.6, day_gain=0.6)
+    b1, _ = top1(lambda: CorrModel(eeg_kind="abs"), identity=0.6, day_gain=0.6)
+    assert acc > 0.7 and acc >= b1, (acc, b1)
+    acc, chance = top1(model, identity=0.0)
+    assert acc < chance + 0.15
