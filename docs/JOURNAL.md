@@ -142,3 +142,46 @@ réduit aux colonnes issues de la liste des fichiers.
 respiration.
 
 **Prochaine étape** : pipeline d'évaluation commun (étape 1).
+
+---
+
+## 2026-11-15 — Étape 1 : pipeline d'évaluation commun
+
+**Objectif** : un seul chemin d'évaluation pour tous les modèles de l'équipe,
+avec les mêmes plis, des IC et des contrôles.
+
+**Ce qui a été fait** : `reid/eval/` (`protocol.py`, `interface.py`,
+`matching.py`, `metrics.py`, `controls.py`, `runner.py`, `report.py`,
+`README.md`), `scripts/reid_run.py`, `scripts/reid_report.py`,
+`tests/reid/test_eval.py` + `tests/reid/synthetic.py` (8 tests).
+
+**Choix et pourquoi** :
+- Unité commune : la **fenêtre de 10 s** (la durée d'un essai vidéo). Les
+  features en cache ont une ligne par fenêtre, ce qui permet les moitiés de
+  session (plafond même-jour) et les ablations de durée sans recalcul.
+- `fit` ne voit aucune session des personnes de test, même pas leur galerie :
+  c'est plus strict que demandé et plus simple à vérifier. L'enrôlement se fait
+  dans `score`.
+- Les personnes à un seul jour sont réparties dans les plis : elles servent de
+  distracteurs pour leur pli et d'entraînement pour les quatre autres (au lieu
+  d'être « toujours » en entraînement), pour que les distracteurs soient
+  inconnus du modèle.
+- Ex-æquo départagés au hasard en espérance, pour que les scores grossiers
+  (démographie) ne soient ni avantagés ni pénalisés.
+- `folds.json` n'est **pas encore généré** : il sera créé une seule fois, quand
+  `participants_train.csv` permettra de stratifier par cohorte.
+
+**Résultats** (synthétiques uniquement) : embeddings parfaits → top-1 = 1 ;
+embeddings aléatoires et labels mélangés → hasard dans l'IC ; Hongrois > plus
+proche voisin sur un cas construit ; aucune personne de test dans `fit`.
+
+**Interprétation** : le contrôle démographique atteint 0,81 de top-1 sur les
+données synthétiques, parce que l'âge exact et le genre sont fixes par personne.
+Sur les vraies données, il sera aussi probablement bien au-dessus du hasard :
+c'est la barre à battre, pas le hasard seul.
+
+**Limites / à vérifier** : galeries d'environ 43 personnes avec 5 plis ;
+courbe de taille de galerie limitée à la taille d'un pli.
+
+**Prochaine étape** : extraction des features (fin de l'étape 0), puis
+baselines.
