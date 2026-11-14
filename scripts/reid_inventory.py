@@ -46,7 +46,7 @@ def main() -> None:
 
     table_dir = args.participants.parent if args.participants else data_dir
     participants = inv_mod.load_participants(table_dir)
-    inv = inv_mod.build_inventory(files, local=not args.hf, participants=participants)
+    inv = inv_mod.build_inventory(files, local=not args.hf)
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     inv.to_csv(args.out, index=False)
@@ -58,7 +58,9 @@ def main() -> None:
     if participants is None:
         print("participants_train.csv not found: cohort unknown ('?').")
     print("\nPeople per cohort and available days:")
-    print(inv_mod.day_patterns(inv).to_string())
+    print(
+        inv_mod.day_patterns(inv_mod.attach_participants(inv, participants)).to_string()
+    )
     print("\nPeople usable per scenario (task present on both days):")
     print(inv_mod.pair_counts(inv).to_string())
     print("\nRecording durations (s):")

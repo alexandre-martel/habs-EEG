@@ -16,14 +16,16 @@ fin du projet. Le dépôt GitHub est **public**. Conséquences pour le dépôt :
 
 - on ne commite ni données, ni features, ni embeddings, ni matrices de scores
   par participant (`data/`, `cache/`, `out/`, `*.npz`, `*.parquet` ignorés) ;
-- `results/inventory.csv` ne contient pas l'âge ni le genre : ils sont relus
-  depuis `participants_train.csv` au moment de l'évaluation ;
+- `results/inventory.csv` ne contient que ce que la liste publique des fichiers
+  montre déjà (identifiants, jours, tâches, durées). Cohorte, âge, genre et nom
+  de protocole sont joints à l'exécution depuis `participants_train.csv` et les
+  `metadata.json` (`reid.inventory.load_inventory`) ;
 - on ne commite que des métriques agrégées, des splits (identifiants
   pseudonymisés, déjà publics dans la liste des fichiers) et des figures
   agrégées ;
 - le contrôle « candidats doublons » (identifiants différents, même personne)
-  ressemble à de la mise en relation d'enregistrements : **à faire valider par
-  HABS avant de le lancer**, et sa sortie ne sera jamais commitée.
+  ressemble à de la mise en relation d'enregistrements : **non implémenté tant
+  que HABS ne l'a pas validé**, et sa sortie ne sera jamais commitée.
 
 ## Environnement
 
@@ -114,3 +116,29 @@ estimées.
 
 **Prochaine étape** : télécharger tables + `metadata.json` + repos + artefact,
 régénérer l'inventaire avec `--data ./data`, puis étape 1 (pipeline d'évaluation).
+
+---
+
+## 2026-11-15 — Décisions : CURATED, pas d'oculométrie, inventaire public minimal
+
+**Objectif** : figer les choix de données avant le pipeline d'évaluation.
+
+**Ce qui a été fait** : `reid/config.py` (modalités, fenêtres, bandes),
+suppression de `features/gaze.py` et `features/anatomy.py`, inventaire public
+réduit aux colonnes issues de la liste des fichiers.
+
+**Choix et pourquoi** :
+- `CURATED` + notre propre prétraitement (décision de l'équipe).
+- **Oculométrie entièrement retirée** (regard, pupille, centres des globes
+  oculaires, axes optiques) : le flux n'est pas synchronisé de façon fiable avec
+  les autres. Conséquence : le contrôle « anatomie » (distance inter-oculaire)
+  disparaît aussi. Les mouvements oculaires restent visibles dans l'EEG
+  frontal (clignements, saccades) : on ne les retire pas, on le garde en tête
+  en interprétant les résultats, en particulier sur le bloc artefact.
+- Le nom du protocole est retiré de l'inventaire public : `PerfumFemme2025`
+  (P001) laisse deviner le genre.
+
+**Limites / à vérifier** : sans oculométrie, les modalités sont EEG, ECG, EDA et
+respiration.
+
+**Prochaine étape** : pipeline d'évaluation commun (étape 1).

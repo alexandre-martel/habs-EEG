@@ -53,12 +53,11 @@ def test_build_inventory_local(tmp_path: Path) -> None:
     )
 
     files = inv_mod.parse_listing(inv_mod.list_local(tmp_path))
-    inv = inv_mod.build_inventory(
-        files, local=True, participants=inv_mod.load_participants(tmp_path)
-    )
-
+    inv = inv_mod.build_inventory(files, local=True)
     assert list(inv.columns) == inv_mod.COLUMNS
-    assert "age" not in inv.columns and "gender" not in inv.columns
+    assert not {"cohort", "age", "gender", "protocol"} & set(inv.columns)
+
+    inv = inv_mod.attach_participants(inv, inv_mod.load_participants(tmp_path))
     p1d2 = inv.query("participant_id == 'P001' and day == 2").iloc[0]
     assert p1d2.has_rest and not p1d2.has_artefact and p1d2.rest_duration_s == 94.0
     assert inv.cohort.iloc[:2].tolist() == [1, 1] and pd.isna(inv.cohort.iloc[2])
@@ -90,4 +89,3 @@ def test_sample_p001() -> None:
     assert (len(inv), row.participant_id, row.day) == (1, "P001", 1)
     assert row.has_rest and row.has_artefact and not row.has_video
     assert row.rest_duration_s == pytest.approx(95.079)
-    assert row.protocol == "PerfumFemme2025"

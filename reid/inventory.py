@@ -3,14 +3,15 @@
 Two sources of file listings:
 
 * a local dataset root (``CURATED/<PID>/...``): metadata.json files are read for
-  the protocol and the exact segment durations;
+  the exact segment durations;
 * the Hugging Face file listing (public, no download): only names and sizes,
   durations are then estimated from the BDF size (``duration_source="bdf_size"``).
 
-Cohort comes from ``participants_train.csv`` when it is available. Age and
-gender are deliberately *not* copied into the inventory: the repository is
-public and the data use agreement forbids redistributing participant-level
-derivatives, so demographics are joined at evaluation time from the table.
+The committed inventory only holds what the public file listing already
+shows (IDs, days, tasks, durations). Nothing from the participant tables
+(cohort, age, gender) nor the protocol name (some names reveal gender, e.g.
+``PerfumFemme2025``) is written to the public repository: ``load_inventory``
+joins them at run time from ``participants_train.csv``.
 """
 
 from __future__ import annotations
@@ -22,7 +23,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from reid.config import HF_REPO, TASKS
+from reid.config import HF_REPO, RESULTS, TASKS, default_data_dir
 
 FILE_RE = re.compile(
     r"(?:^|/)CURATED/(?P<pid>P\d{3})/(?P=pid)_day-(?P<day>\d+)_"
@@ -36,7 +37,6 @@ BDF_OFFSET_BYTES = 255_750.0
 
 COLUMNS = [
     "participant_id",
-    "cohort",
     "day",
     "has_rest",
     "has_artefact",
@@ -44,7 +44,6 @@ COLUMNS = [
     "rest_duration_s",
     "artefact_duration_s",
     "duration_source",
-    "protocol",
     "rest_mb",
     "artefact_mb",
     "video_mb",
@@ -122,7 +121,6 @@ def _session_row(files: pd.DataFrame, local: bool) -> dict:
         row[f"{flag}_mb"] = round(bdf[task] / 1e6, 1) if task in bdf.index else None
     meta = files[files.kind == "metadata"]
     info = read_metadata(Path(meta.path.iloc[0])) if local and len(meta) else None
-    row["protocol"] = info["protocol"] if info else None
     row["duration_source"] = "metadata" if info else "bdf_size"
     for task, flag in (("resting-state", "rest"), ("artefact", "artefact")):
         if task not in bdf.index:
@@ -135,24 +133,44 @@ def _session_row(files: pd.DataFrame, local: bool) -> dict:
     return row
 
 
-def build_inventory(
-    files: pd.DataFrame, local: bool, participants: pd.DataFrame | None = None
-) -> pd.DataFrame:
+def build_inventory(files: pd.DataFrame, local: bool) -> pd.DataFrame:
     """One row per session (participant x day) with available tasks and durations."""
     rows = [
         {"participant_id": pid, "day": day, **_session_row(group, local)}
         for (pid, day), group in files.groupby(["participant_id", "day"])
     ]
-    inv = pd.DataFrame(rows)
-    inv["cohort"] = pd.NA
-    if participants is not None:
-        cohort = participants.set_index("participant_id")["cohort"]
-        inv["cohort"] = inv.participant_id.map(cohort).astype("Int64")
-    return inv[COLUMNS].sort_values(["participant_id", "day"]).reset_index(drop=True)
+    inv = pd.DataFrame(rows)[COLUMNS]
+    return inv.sort_values(["participant_id", "day"]).reset_index(drop=True)
+
+
+def attach_participants(
+    inv: pd.DataFrame, participants: pd.DataFrame | None
+) -> pd.DataFrame:
+    """Add cohort, age and gender (all NA when the table is unavailable)."""
+    inv = inv.copy()
+    table = (
+        participants.drop_duplicates("participant_id").set_index("participant_id")
+        if participants is not None
+        else pd.DataFrame(columns=["cohort", "age", "gender"])
+    )
+    inv["cohort"] = inv.participant_id.map(table["cohort"]).astype("Int64")
+    inv["age"] = inv.participant_id.map(table["age"]).astype("Float64")
+    inv["gender"] = inv.participant_id.map(table["gender"]).astype("string")
+    return inv
+
+
+def load_inventory(
+    data_dir: Path | None = None, path: Path = RESULTS / "inventory.csv"
+) -> pd.DataFrame:
+    """Committed inventory joined at run time with the participant table."""
+    inv = pd.read_csv(path)
+    return attach_participants(inv, load_participants(data_dir or default_data_dir()))
 
 
 def day_patterns(inv: pd.DataFrame) -> pd.DataFrame:
     """Number of people per cohort and per set of available days ("1+2", ...)."""
+    if "cohort" not in inv:
+        inv = inv.assign(cohort=pd.NA)
     people = inv.groupby("participant_id").agg(
         cohort=("cohort", "first"),
         days=("day", lambda d: "+".join(map(str, sorted(d)))),
