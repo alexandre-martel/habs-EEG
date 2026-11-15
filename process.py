@@ -32,7 +32,9 @@ from bdf_loader import load_bdf  # noqa: E402
 
 # ── Réglages ────────────────────────────────────────────────────────────────
 SOURCE = "PREPROCESSED"                 # données nettoyées par HABS
-TASKS = ["resting-state", "emotion-video", "artefact"]
+# Job 1 : le repos seulement (expérience principale, ~20 Mo par fichier, rapide).
+# Job 2 : remplacer par ["emotion-video"]. Les artefacts n'existent jamais sur 2 jours.
+TASKS = ["resting-state"]
 WINDOW_S, STEP_S = 15.0, 20.0           # 15 s de signal, une fenêtre toutes les 20 s
 # Traitement par lots si 1 h ne suffit pas : participants n° FIRST à LAST-1
 # dans l'ordre alphabétique (ex. 0-120, puis 120-240, puis 240-400).
