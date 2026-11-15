@@ -118,15 +118,62 @@ def accuracy(C):
 # ----------------------------------------------------------------------------
 # Figures
 # ----------------------------------------------------------------------------
+def tsne_numpy(X, perplexity=15.0, n_iter=1000, seed=SEED):
+    """t-SNE exact écrit en numpy (pas de fichier compilé : contourne Smart App Control).
+    Suffisant pour quelques centaines de points."""
+    n = X.shape[0]
+    D = np.sum(X ** 2, 1)[:, None] + np.sum(X ** 2, 1)[None, :] - 2 * X @ X.T
+    D = np.maximum(D, 0)
+    P = np.zeros((n, n))
+    target = np.log(perplexity)
+    for i in range(n):
+        lo, hi, beta = 0.0, np.inf, 1.0
+        di = np.delete(D[i], i)
+        for _ in range(60):  # recherche de la largeur de noyau qui donne la perplexité voulue
+            p = np.exp(-(di - di.min()) * beta)
+            sp = p.sum()
+            H = np.log(sp) + beta * np.sum((di - di.min()) * p) / sp
+            if abs(H - target) < 1e-5:
+                break
+            if H > target:
+                lo, beta = beta, beta * 2 if hi == np.inf else (beta + hi) / 2
+            else:
+                hi, beta = beta, (beta + lo) / 2
+        P[i, np.arange(n) != i] = p / sp
+    P = (P + P.T) / (2 * n)
+    P = np.maximum(P, 1e-12)
+
+    rng = np.random.default_rng(seed)
+    Y = rng.normal(scale=1e-4, size=(n, 2))
+    vel, gains = np.zeros_like(Y), np.ones_like(Y)
+    lr = max(n / 48.0, 50.0)  # même règle que scikit-learn (learning_rate='auto')
+    for it in range(n_iter):
+        exag = 12.0 if it < 250 else 1.0
+        mom = 0.5 if it < 250 else 0.8
+        sq = np.sum(Y ** 2, 1)
+        num = 1.0 / (1.0 + sq[:, None] + sq[None, :] - 2 * Y @ Y.T)
+        np.fill_diagonal(num, 0)
+        Q = np.maximum(num / num.sum(), 1e-12)
+        PQ = (exag * P - Q) * num
+        grad = 4 * (np.diag(PQ.sum(1)) - PQ) @ Y
+        gains = np.where(np.sign(grad) != np.sign(vel), gains + 0.2, gains * 0.8)
+        gains = np.maximum(gains, 0.01)
+        vel = mom * vel - lr * gains * grad
+        Y = Y + vel
+        Y = Y - Y.mean(0)
+    return Y
+
+
 def fig_tsne(d, pid, feats, out, n_people=15):
-    from sklearn.manifold import TSNE
     rng = np.random.default_rng(SEED)
     people = rng.choice(d[pid].unique(), size=min(n_people, d[pid].nunique()), replace=False)
     sub = d[d[pid].isin(people)].reset_index(drop=True)
     X = sub[feats].values
     X = (X - X.mean(0)) / np.where(X.std(0) == 0, 1, X.std(0))
-    emb = TSNE(n_components=2, perplexity=min(15, len(sub) // 4), init="pca",
-               random_state=SEED).fit_transform(X)
+    # réduction préalable à 30 dimensions par PCA (numpy), comme le fait t-SNE en pratique
+    U, S, _ = np.linalg.svd(X - X.mean(0), full_matrices=False)
+    X = U[:, :30] * S[:30]
+    emb = tsne_numpy(X, perplexity=min(15, len(sub) // 4))
 
     fig, ax = plt.subplots(figsize=(9, 7))
     palette = list(plt.get_cmap("tab10").colors) + list(plt.get_cmap("Dark2").colors)
@@ -305,6 +352,14 @@ def fig_scores(acc_corr, n_people, out):
 
 
 # ----------------------------------------------------------------------------
+def safe(step, fn, *args):
+    try:
+        return fn(*args)
+    except Exception as e:
+        print(f"[ATTENTION] {step} a échoué : {type(e).__name__}: {e}")
+        return None
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--csv", default="../data/features_repos.csv")
@@ -327,28 +382,28 @@ def main():
     P1, P2, A, B = P1[keep], P2[keep], A[keep], B[keep]
     n = len(P1)
 
-    print("[1/6] t-SNE (peut prendre ~30 s)...")
-    fig_tsne(d, pid, feats, out)
+    print("[1/6] t-SNE (peut prendre ~1 min)...")
+    safe("t-SNE", fig_tsne, d, pid, feats, out)
 
     print("[2/6] Matrices de ressemblance...")
     C_same, C_cross = corr_matrix(A, B), corr_matrix(P1, P2)
     acc_same, acc_cross = accuracy(C_same), accuracy(C_cross)
     eeg = [f for f in feats if f.startswith("eeg_")]
     acc_cross_eeg = accuracy(corr_matrix(P1[eeg], P2[eeg])) if eeg else float("nan")
-    fig_matrices(C_same, C_cross, acc_same, acc_cross, out)
+    safe("Matrices", fig_matrices, C_same, C_cross, acc_same, acc_cross, out)
 
     print("[3/6] Distributions...")
-    fig_distributions(C_same, C_cross, out)
+    safe("Distributions", fig_distributions, C_same, C_cross, out)
 
     print("[4/6] Stabilité EEG (cartes du crâne)...")
     r_same, r_cross = feature_reliability(A, B), feature_reliability(P1, P2)
-    by_band = fig_eeg_stability(r_same, r_cross, out)
+    by_band = safe("Stabilité EEG", fig_eeg_stability, r_same, r_cross, out)
 
     print("[5/6] Stabilité des autres signaux...")
-    fig_other_stability(r_same, r_cross, out)
+    safe("Stabilité autres signaux", fig_other_stability, r_same, r_cross, out)
 
     print("[6/6] Scores...")
-    fig_scores(acc_cross, n, out)
+    safe("Scores", fig_scores, acc_cross, n, out)
 
     lines = [
         f"Personnes avec 2 séances : {n} (hasard = {100 / n:.2f} %)",
