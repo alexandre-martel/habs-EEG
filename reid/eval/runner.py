@@ -147,11 +147,24 @@ def _controls(blocks, embeddings, inv, folds, scenario, split_kw):
         )
         out["demographics"] = _short(metrics.summarize(demo, n_boot=200))
     if embeddings and "cohort" in inv and inv.cohort.notna().any():
-        X = np.vstack([e for e, _ in embeddings])
-        sessions = pd.concat([s for _, s in embeddings])
-        out["cohort_prediction"] = controls.cohort_predictability(
-            X, sessions.cohort.to_numpy(float), sessions.participant_id.to_numpy()
-        )
+        # one model (hence one embedding space) per fold: predict within each
+        # fold's gallery, then average weighted by the number of sessions
+        per_fold = [
+            (
+                len(s),
+                controls.cohort_predictability(
+                    X, s.cohort.to_numpy(float), s.participant_id.to_numpy()
+                ),
+            )
+            for X, s in embeddings
+        ]
+        per_fold = [(n, r) for n, r in per_fold if r]
+        if per_fold:
+            n = np.array([n for n, _ in per_fold], dtype=float)
+            out["cohort_prediction"] = {
+                k: float(np.average([r[k] for _, r in per_fold], weights=n))
+                for k in ("accuracy", "majority")
+            }
     return out
 
 

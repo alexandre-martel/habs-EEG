@@ -454,3 +454,15 @@ fichiers déjà téléchargés), pour qu'ils ne changent pas quand le reste arri
   top-1 ≈ 0,75, EER ≈ 0,01. C'est la barre à battre, pas le hasard.
 - Features physiologiques plausibles (FC 55-109 bpm, EDA tonique 1-9 µS,
   respiration ~16 /min, 6 % d'epochs EEG rejetées en médiane).
+- **Contrôle « cohorte prévisible »** : il empilait les embeddings de tous les
+  plis, alors que chaque pli a son propre modèle (espaces différents, et même
+  tailles différentes pour la LDA, d'où un plantage). Calculé maintenant pli
+  par pli (galerie du pli), moyenne pondérée. Test de non-régression.
+- **PLDA** : sur le pli 0, top-1 PLDA 0,29 contre 0,93 au cosinus. Diagnostic :
+  la PLDA s'effondre quand la dimension approche le nombre de personnes
+  d'entraînement (~170) — 0,81 en 32 dimensions, 0,73 en 64, 0,29 en 172 —
+  alors que le choix de dimension se faisait au cosinus (qui préfère 256). La
+  validation interne utilise maintenant le score du modèle lui-même (PLDA
+  ajustée sur les personnes internes) ; grille 16-256.
+- Téléchargement terminé : 590 sessions repos + 222 artefact (21 Go), toutes
+  extraites sans échec.

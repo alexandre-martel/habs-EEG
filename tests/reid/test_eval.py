@@ -150,3 +150,23 @@ def test_demographic_control_with_missing_gender():
         SimpleNamespace(sessions=g), SimpleNamespace(sessions=p)
     )
     np.testing.assert_array_equal(S, [[-11, -9, 0], [-10, 0, -10]])
+
+
+class FoldDependentDim(MeanEmbedding):
+    """Embedding size changes from fold to fold, like the LDA's inner selection."""
+
+    n_fits: ClassVar[int] = 0
+
+    def fit(self, train):
+        FoldDependentDim.n_fits += 1
+        self.dim = 16 - FoldDependentDim.n_fits
+
+    def embed(self, sessions):
+        return super().embed(sessions)[:, : self.dim]
+
+
+def test_embedding_size_may_change_between_folds() -> None:
+    """Regression: the cohort control used to stack all folds' embeddings."""
+    run = _run(identity=1.0, model=FoldDependentDim)
+    assert run["pooled"]["top1"]["value"] == 1.0
+    assert "cohort_prediction" in run["controls"]

@@ -95,7 +95,7 @@ class LdaModel:
         modalities=("eeg",),
         conditions=("rest_ec", "rest_eo"),
         eeg_kind: str = "rel",
-        n_components=(32, 64, 128, 256),
+        n_components=(16, 32, 64, 128, 256),
         plda: bool = False,
         multi_day_only: bool = True,
         seed: int = SEED,
@@ -142,7 +142,9 @@ class LdaModel:
 
     def _select_n(self, train: SessionSet) -> int:
         """Inner validation: 20 % of the training people with days 1 and 2,
-        day 1 -> day 2 top-1 with cosine scores."""
+        day 1 -> day 2 top-1 with the model's own score (cosine, or PLDA fitted
+        on the inner people: PLDA degrades when the dimension nears the number
+        of training people, which cosine does not see)."""
         if len(self.grid) == 1:
             return self.grid[0]
         df = train.sessions
@@ -156,7 +158,12 @@ class LdaModel:
         scores = {}
         for n in self.grid:
             pipe = self._fit_pipeline(inner, n)
-            S = cosine(self._embed(pipe, prb), self._embed(pipe, gal))
+            p, g = self._embed(pipe, prb), self._embed(pipe, gal)
+            if self.use_plda:
+                plda = TwoCovPLDA().fit(self._embed(pipe, inner), inner.pids)
+                S = plda.score(p, g)
+            else:
+                S = cosine(p, g)
             greater, ties = rank_counts(S, truth_index(gal.pids, prb.pids))
             scores[n] = topk(greater, ties, 1).mean()
         return max(scores, key=scores.get)
