@@ -10,7 +10,6 @@ days: the artefact block was recorded on a single day per person.
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 import numpy as np
@@ -94,7 +93,11 @@ def _with_task(inv: pd.DataFrame, task: str) -> pd.DataFrame:
 def arousal_split(labels: pd.DataFrame) -> dict[str, dict]:
     """Video-trial start markers below / above each session's median arousal."""
     labels = labels.dropna(subset=["rating_arousal", "start_marker"]).copy()
-    labels["day"] = labels.day.astype(str).map(lambda d: int(re.sub(r"\D", "", d) or 0))
+    # day is a float column in labels_train.csv (1.0, 2.0, NaN), or "day-1" strings
+    day = pd.to_numeric(labels.day, errors="coerce")
+    text = labels.day.astype(str).str.extract(r"day-?(\d+)", expand=False)
+    labels["day"] = day.fillna(pd.to_numeric(text, errors="coerce"))
+    labels = labels.dropna(subset=["day"]).astype({"day": int})
     out = {"arousal_low": {}, "arousal_high": {}}
     for (pid, day), g in labels.groupby(["participant_id", "day"]):
         median = g.rating_arousal.median()

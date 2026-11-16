@@ -404,3 +404,29 @@ tables.
 
 **Prochaine étape** : données → inventaire exact → `folds.json` → extraction →
 lancer les baselines.
+
+## 2026-11-16 — Données : accès, vérifications, plis partagés
+
+**Objectif** : récupérer CURATED (repos + artefact), vérifier les hypothèses
+faites sans données, figer les plis de toute l'équipe.
+
+**Ce qui a été fait** :
+- Accès HF accordé. Commande correcte (un `--include` **par motif** : avec
+  `--include a b c`, `hf` lit b et c comme des noms de fichiers) :
+  `hf download HABSteam/multimodal-eeg-emotion --repo-type dataset --local-dir ./data --include "*.csv" --include "CURATED/*/*_metadata.json" --include "CURATED/*/*.record_map" --include "CURATED/*/*resting-state*" --include "CURATED/*/*artefact*"`.
+- Connexion très lente ce jour-là (~120 ko/s, mesuré aussi hors HF) :
+  téléchargement relancé sous watchdog, repos en priorité.
+- Marqueurs vérifiés sur les 596 métadonnées (5 cohortes) : 590 sessions de
+  repos ont toutes 3 fenêtres EO + 6 EC, 222 sessions artefact ont toutes
+  12 fenêtres EO + les 7 actions. Aucune exception.
+- `labels_train.csv` : `day` est un flottant (1.0/2.0/NaN), `start_marker` un
+  entier qui correspond aux marqueurs vidéo. **Bug corrigé** dans
+  `arousal_split` (1.0 devenait le jour 10) + test de non-régression.
+- `participants_train.csv` : 383 lignes ; P057 (une session) n'y figure pas
+  (cohorte inconnue, gardé, non stratifié).
+- `results/splits/folds.json` : 5 plis sur les 355 personnes de l'inventaire,
+  stratifiés par cohorte ; ~44 personnes multi-jours de test + ~27
+  distracteurs par pli. Ne contient que des identifiants déjà publics.
+
+**Choix et pourquoi** : plis tirés sur l'inventaire complet (et non sur les
+fichiers déjà téléchargés), pour qu'ils ne changent pas quand le reste arrive.

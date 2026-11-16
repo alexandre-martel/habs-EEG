@@ -2,6 +2,7 @@
 chance when absent."""
 
 import numpy as np
+import pandas as pd
 import pytest
 from synthetic import make_feature_dataset
 
@@ -199,3 +200,22 @@ def test_ablations_and_their_figures(tmp_path) -> None:
         "ablation_duration_b1.png",
         "ablation_task_b1.png",
     } <= names
+
+
+def test_arousal_split_parses_float_days():
+    """labels_train.csv stores day as 1.0 / 2.0 / NaN (regression: 1.0 -> 10)."""
+    from reid.baselines.b4_ablations import arousal_split
+
+    labels = pd.DataFrame(
+        {
+            "participant_id": ["P1"] * 4 + ["P1"] * 2 + ["P2"],
+            "day": [1.0, 1.0, 1.0, 1.0, "day-2", "day-2", np.nan],
+            "start_marker": [10100, 10200, 10300, 10400, 10100, 10200, 10100],
+            "rating_arousal": [1, 2, 8, 9, 3, 7, 5],
+        }
+    )
+    split = arousal_split(labels)
+    assert set(split["arousal_low"]) == {("P1", 1), ("P1", 2)}
+    assert split["arousal_low"][("P1", 1)] == {10100, 10200}
+    assert split["arousal_high"][("P1", 1)] == {10300, 10400}
+    assert split["arousal_high"][("P1", 2)] == {10200}
