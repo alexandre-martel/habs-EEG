@@ -170,3 +170,13 @@ def test_embedding_size_may_change_between_folds() -> None:
     run = _run(identity=1.0, model=FoldDependentDim)
     assert run["pooled"]["top1"]["value"] == 1.0
     assert "cohort_prediction" in run["controls"]
+
+
+def test_hungarian_ties_are_not_resolved_by_row_order() -> None:
+    """Regression: with all-tied scores, the identity diagonal used to win."""
+    n = 30
+    S = np.zeros((n, n))
+    acc = matching.hungarian_correct(S, np.arange(n)).mean()
+    assert acc < 0.2  # expected 1/n
+    S = np.eye(n)  # untied: always right
+    assert matching.hungarian_correct(S, np.arange(n)).mean() == 1.0

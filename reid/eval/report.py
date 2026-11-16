@@ -112,12 +112,14 @@ def _bars(sub: pd.DataFrame, labels: str, title: str, out: Path) -> None:
     demo = sub.demographics_top1.dropna()
     if len(demo):
         ax.axvline(demo.mean(), color=INK_2, ls=":", lw=1.2, label="demographics only")
-    ax.legend(frameon=False, loc="lower right")
     ax.set_xlim(0, 1)
     ax.set_xlabel("top-1 accuracy (95 % CI over people)")
     ax.set_title(title, loc="left", color=INK)
     ax.grid(axis="y", visible=False)
-    fig.tight_layout()
+    # legend below the axes: never on top of a bar or its error bar
+    fig.legend(*ax.get_legend_handles_labels(), frameon=False, loc="lower center",
+               ncol=2)
+    fig.tight_layout(rect=(0, 0.35 / fig.get_figheight(), 1, 1))
     fig.savefig(out, dpi=200)
     plt.close(fig)
 
@@ -201,12 +203,34 @@ def _duration_curve(sub: pd.DataFrame, title: str, out: Path) -> None:
 
 
 def gallery_curve(runs: list[dict], out: Path, max_models: int = 3) -> None:
-    """Top-1 vs gallery size for the best d1_to_d2 runs."""
-    runs = [r for r in runs if r["scenario"] == "d1_to_d2" and r.get("gallery_size")]
-    runs = sorted(runs, key=lambda r: -r["pooled"]["top1"]["value"])[:max_models]
+    """Top-1 vs gallery size: best d1_to_d2 run of the ``max_models`` best
+    families (b1, b2, ...; ablations excluded), demographic control in grey."""
+    runs = [
+        r
+        for r in runs
+        if r["scenario"] == "d1_to_d2"
+        and r.get("gallery_size")
+        and not r["model"].startswith("abl_")
+    ]
+    demo = [r for r in runs if r["model"].startswith("control_")]
+    best: dict[str, dict] = {}
+    for r in sorted(runs, key=lambda r: -r["pooled"]["top1"]["value"]):
+        if not r["model"].startswith("control_"):
+            best.setdefault(r["model"].split("_")[0], r)
+    runs = list(best.values())[:max_models]
     if not runs:
         return
     fig, ax = plt.subplots(figsize=(5, 3.5))
+    for r in demo[:1]:
+        pts = sorted(r["gallery_size"].values(), key=lambda p: p["n"])
+        ax.plot(
+            [p["n"] for p in pts],
+            [p["top1"] for p in pts],
+            color=INK_2,
+            ls=":",
+            lw=1.5,
+            label="demographics only",
+        )
     for color, r in zip(SERIES, runs):
         pts = sorted(r["gallery_size"].values(), key=lambda p: p["n"])
         n = [p["n"] for p in pts]

@@ -466,3 +466,69 @@ fichiers déjà téléchargés), pour qu'ils ne changent pas quand le reste arri
   ajustée sur les personnes internes) ; grille 16-256.
 - Téléchargement terminé : 590 sessions repos + 222 artefact (21 Go), toutes
   extraites sans échec.
+
+## 2026-11-16 — Premiers résultats : baselines B1-B5 et ablations (repos)
+
+**Objectif** : faire tourner les 34 modèles enregistrés sur les 6 scénarios
+(repos, plis partagés) et les ablations de la meilleure méthode.
+
+**Ce qui a été fait** : 204 runs + 18 ablations (`results/runs/`, agrégats
+seulement : ni identifiant, ni âge, ni genre), `results/leaderboard.csv`,
+figures dans `results/figures/`. Deux correctifs en route :
+- **Appariement hongrois et égalités** : `linear_sum_assignment` garde le
+  premier optimum ; galerie et sondes étant triées par le même identifiant, la
+  diagonale (la bonne réponse) gagnait toutes les égalités. Seul le contrôle
+  démographique (scores entiers) était touché : 1,00 → 0,78. Égalités tirées au
+  hasard (moyenne de 20 permutations), test ajouté ; les modèles à scores
+  continus ne changent pas (vérifié sur `b1_abs_ec+eo`).
+- Figures : courbe de taille de galerie = meilleur modèle par famille + la
+  démographie (et non trois ablations quasi identiques) ; légende des barres
+  sous le graphique.
+
+**Résultats (d1 → d2, 208 sondes, galerie ~42, hasard 0,024 ; IC 95 % bootstrap
+sur les personnes)** :
+
+| modèle | top-1 | IC 95 % | top-5 | hongrois | EER |
+|---|---|---|---|---|---|
+| b3_lda_all (EEG+ECG+EDA+resp) | 0,83 | 0,77-0,88 | 0,95 | 0,93 | 0,08 |
+| b3_lda_eeg | 0,78 | 0,73-0,84 | 0,91 | 0,85 | 0,11 |
+| b3_plda_all | 0,74 | 0,67-0,80 | 0,91 | 0,81 | 0,12 |
+| **contrôle démographique** (âge, genre) | 0,71 | 0,67-0,75 | 1,00 | 0,78 | 0,01 |
+| b1_abs_ec+eo (corrélation des spectres) | 0,66 | 0,60-0,72 | 0,86 | 0,70 | 0,14 |
+| b1_ecg_beat (forme du battement seule) | 0,60 | 0,53-0,66 | 0,80 | 0,57 | 0,19 |
+| b5_siamese (meilleure graine) | 0,60 | 0,53-0,66 | 0,84 | 0,67 | 0,21 |
+| b2_tangent_fb_ec (riemannien) | 0,52 | 0,45-0,59 | 0,80 | 0,59 | 0,17 |
+| b2_airm_broad_ec | 0,20 | 0,15-0,26 | 0,45 | 0,41 | 0,35 |
+| b1_ecg / eda / resp (FC, HRV, EDA, resp.) | 0,07-0,09 | | | | |
+
+Autres scénarios pour b3_lda_all : avec distracteurs 0,81 (démographie 0,56) ;
+dans la cohorte 0,91 (0,88) ; plafond même jour 1,00 (0,70) ; d1 → d3 1,00 et
+d2 → d3 0,87, mais 22-23 sondes seulement (hasard 0,22), IC très larges.
+
+Ablations (b3_lda, toutes modalités) :
+- modalités : EEG seul 0,78, forme du battement ECG seule 0,69, FC/HRV,
+  EDA, respiration seules ≈ 0,10 ; sans EEG 0,72 (porté par le battement) ;
+  retirer FC/HRV, EDA ou respiration ne change rien.
+- tâche : EC 0,80 > EO 0,74 ; EC+EO 0,83 ; repos EO du bloc artefact (j1) →
+  repos EO (j2) 0,68.
+- durée par condition : 10 s 0,71 ; 20 s 0,75 ; 30 s 0,81 ; 60 s 0,83.
+- vidéo / arousal : non lancées (données vidéo, 152 Go, non téléchargées).
+
+**Lecture** :
+- La LDA (apprendre ce qui reste stable d'un jour à l'autre) est nettement la
+  meilleure ; la PLDA ne l'améliore pas avec ~170 personnes d'entraînement ; le
+  siamois sous-performe la LDA (peu de données, pas encore réglé).
+- **La démographie seule est la vraie barre** : sur 42 personnes, elle est à
+  0,71 ; seules les LDA la dépassent, et l'écart grandit avec la galerie
+  (`gallery_size.png`) et avec des distracteurs.
+- **La forme du battement cardiaque est un identifiant presque aussi fort que
+  l'EEG** (biométrie ECG connue) ; les marqueurs autonomes (FC, HRV, EDA,
+  respiration) varient trop d'un jour à l'autre pour identifier.
+- Les embeddings LDA ne prédisent pas la cohorte mieux que la classe majoritaire
+  (0,44 contre 0,44) : pas de confusion cohorte ↔ identité visible.
+- AIRM brut s'effondre (0,20) alors que l'espace tangent tient (0,41-0,52) : la
+  standardisation apprise sur l'entraînement absorbe les gains du jour, comme
+  sur synthétique. Le recentrage par session n'efface pas l'identité (0,50).
+
+**Limites** : d → d3 trop peu nombreux pour conclure ; un seul découpage en
+5 plis ; hyperparamètres du siamois non réglés ; ECG en unités du header.

@@ -48,3 +48,22 @@ def hungarian(S: np.ndarray) -> np.ndarray:
     assigned = np.full(len(S), -1)
     assigned[rows] = cols
     return assigned
+
+
+def hungarian_correct(
+    S: np.ndarray, truth: np.ndarray, n_perm: int = 20, seed: int = 0
+) -> np.ndarray:
+    """Per-probe probability that the Hungarian assignment is right, ties broken
+    at random: ``linear_sum_assignment`` keeps the first optimum it finds, and
+    gallery and probes are sorted by the same ids, so with tied scores (e.g.
+    demographics) the identity diagonal would win by construction. Rows and
+    columns are permuted ``n_perm`` times; with untied scores every permutation
+    gives the same answer."""
+    rng = np.random.default_rng(seed)
+    hits = np.zeros(len(S))
+    for _ in range(n_perm):
+        r, c = rng.permutation(S.shape[0]), rng.permutation(S.shape[1])
+        assigned = np.full(len(S), -1)
+        assigned[r] = c[hungarian(S[np.ix_(r, c)])]
+        hits += assigned == truth
+    return hits / n_perm

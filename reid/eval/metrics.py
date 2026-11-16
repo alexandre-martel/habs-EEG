@@ -32,7 +32,7 @@ def per_probe(block: Block) -> dict[str, np.ndarray]:
     greater, ties = matching.rank_counts(S, truth)
     n_valid = np.isfinite(S).sum(axis=1)
     if block.one_to_one:
-        hung = (matching.hungarian(block.S)[keep] == truth).astype(float)
+        hung = matching.hungarian_correct(block.S, block.truth)[keep]
     else:
         hung = np.full(len(truth), np.nan)
     return {
