@@ -3,6 +3,7 @@
 from typing import ClassVar
 
 import numpy as np
+import pandas as pd
 import pytest
 from synthetic import make_dataset
 
@@ -133,3 +134,19 @@ def test_make_folds_without_single_day_people() -> None:
     assert all(f["distractors"] == [] for f in folds)
     inv, _ = make_dataset(n_multi=12, n_single=2)
     assert sum(len(f["distractors"]) for f in make_folds(inv, 3)["folds"]) == 2
+
+
+def test_demographic_control_with_missing_gender():
+    """Real tables have a few missing genders (pd.NA): no crash, no penalty."""
+    from types import SimpleNamespace
+
+    from reid.eval.controls import DemographicModel
+
+    g = pd.DataFrame(
+        {"age": [20, 30, np.nan], "gender": pd.array(["F", pd.NA, "M"], dtype="string")}
+    )
+    p = pd.DataFrame({"age": [21, 30], "gender": pd.array(["M", "F"], dtype="string")})
+    S = DemographicModel().score(
+        SimpleNamespace(sessions=g), SimpleNamespace(sessions=p)
+    )
+    np.testing.assert_array_equal(S, [[-11, -9, 0], [-10, 0, -10]])

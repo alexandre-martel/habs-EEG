@@ -15,6 +15,8 @@ the identity information.
 
 from __future__ import annotations
 
+import hashlib
+
 import numpy as np
 from pyriemann.geometry.base import invsqrtm
 from pyriemann.geometry.distance import pairwise_distance
@@ -27,6 +29,20 @@ from reid.eval.protocol import SessionSet
 from reid.features.eeg_cov import riemann_mean
 
 FILTER_BANK = ("theta", "alpha", "beta")
+
+#: Riemannian means are the bottleneck (~30 ms each) and the same session comes
+#: back in every fold, model variant and scenario: memoised per process.
+_MEANS: dict[tuple, np.ndarray] = {}
+
+
+def _session_key(feats: dict) -> tuple:
+    """Content key (not ids: synthetic data and ablations reuse ids)."""
+    digest = hashlib.blake2b(digest_size=16)
+    digest.update(np.ascontiguousarray(feats["w_eeg_cov"]).tobytes())
+    digest.update(np.asarray(feats["w_condition"]).astype(str).tobytes())
+    digest.update(np.asarray(feats["w_eeg_n_epochs"]).tobytes())
+    digest.update("|".join(map(str, feats["cov_bands"])).encode())
+    return (digest.hexdigest(),)
 
 
 class RiemannModel:
@@ -55,6 +71,12 @@ class RiemannModel:
 
     def session_covs(self, feats: dict) -> list[np.ndarray]:
         """One matrix per (condition, band) slot; NaN matrix if unavailable."""
+        key = (*_session_key(feats), self.bands, tuple(self.conditions), self.recenter)
+        if key not in _MEANS:
+            _MEANS[key] = self._session_covs(feats)
+        return _MEANS[key]
+
+    def _session_covs(self, feats: dict) -> list[np.ndarray]:
         band_index = {b: i for i, b in enumerate(feats["cov_bands"])}
         ok = (feats["w_eeg_n_epochs"] > 0) & np.isfinite(feats["w_eeg_cov"]).all(
             axis=(1, 2, 3)

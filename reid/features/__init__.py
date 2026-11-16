@@ -33,7 +33,7 @@ from reid.config import COV_BANDS, MODALITIES, PAD_S, TASKS
 from reid.features import ecg, eda, eeg_cov, eeg_psd, resp
 from reid.segments import Recording, Window, open_recording, windows
 
-VERSION = 1
+VERSION = 2  # 2: PSD on a fixed 89-bin grid (998 Hz sessions)
 SLOW_PAD_S = 10.0  # context for EDA and respiration (a 10 s window holds ~3 breaths)
 SLOW = {"ecg": (ecg, PAD_S), "eda": (eda, SLOW_PAD_S), "resp": (resp, SLOW_PAD_S)}
 

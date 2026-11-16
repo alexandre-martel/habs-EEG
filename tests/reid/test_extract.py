@@ -34,3 +34,15 @@ def test_rest_extraction_produces_documented_keys(tmp_path) -> None:
     assert 40 < np.nanmedian(feats["w_ecg"][:, 0]) < 140  # heart rate, bpm
     # second run: resumable, nothing recomputed
     assert run_extraction(SAMPLE, tmp_path, "rest")["skipped"] == 1
+
+
+@pytest.mark.parametrize("sfreq", [998.0, 1000.0, 1024.0])
+def test_psd_grid_does_not_depend_on_sfreq(sfreq):
+    """Some HABS sessions are sampled at 998 Hz: the grid must stay 1-45 Hz x 89."""
+    from reid.features.eeg_psd import epoch_psd
+
+    t = np.arange(int(2 * sfreq)) / sfreq
+    ep = np.sin(2 * np.pi * 10 * t)[None, None]
+    freqs, psd = epoch_psd(ep, sfreq)
+    assert len(freqs) == 89 and freqs[0] == 1 and freqs[-1] == 45
+    assert freqs[np.argmax(psd[0, 0])] == 10

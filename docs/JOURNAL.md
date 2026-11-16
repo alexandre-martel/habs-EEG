@@ -430,3 +430,27 @@ faites sans données, figer les plis de toute l'équipe.
 
 **Choix et pourquoi** : plis tirés sur l'inventaire complet (et non sur les
 fichiers déjà téléchargés), pour qu'ils ne changent pas quand le reste arrive.
+
+## 2026-11-16 — Correctifs trouvés sur les vraies données
+
+**Ce qui a été fait** (premier passage sur ~240 personnes déjà téléchargées) :
+- **Sessions à 998 Hz** (P029, P066, P108, …) : la grille du périodogramme de
+  2 s n'était plus exactement à 0,5 Hz, 88 bins au lieu de 89 → les modèles
+  plantaient (vecteurs de tailles différentes). Les spectres sont maintenant
+  interpolés sur une grille fixe de 89 bins (identité exacte à 1000 Hz, donc
+  seules les sessions à 998 Hz ont été réextraites). `VERSION = 2` dans les npz.
+  Test : même grille et même pic à 998, 1000 et 1024 Hz.
+- **Contrôle démographique** : 3 sessions sans genre (`pd.NA`) faisaient planter
+  la comparaison. Genre manquant = pas de pénalité. Test ajouté.
+- **B2 lent** (253 s pour `b2_tangent_fb`) : 90 % du temps dans les moyennes
+  riemanniennes par session, recalculées à chaque pli. Mémoïsées par contenu
+  (hash des covariances, pas les identifiants, que les tests synthétiques et
+  les ablations réutilisent) : 76 s, résultats identiques.
+
+**Constats** :
+- Le contrôle démographique est **très fort** : âge en années entières, un
+  couple (âge, genre) regroupe en médiane 4 personnes du dataset entier, donc il
+  est souvent unique dans une galerie de ~30-45 personnes. Premier passage :
+  top-1 ≈ 0,75, EER ≈ 0,01. C'est la barre à battre, pas le hasard.
+- Features physiologiques plausibles (FC 55-109 bpm, EDA tonique 1-9 µS,
+  respiration ~16 /min, 6 % d'epochs EEG rejetées en médiane).

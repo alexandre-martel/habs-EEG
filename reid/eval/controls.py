@@ -36,9 +36,11 @@ class DemographicModel:
     def score(self, gallery: SessionSet, probe: SessionSet) -> np.ndarray:
         g, p = gallery.sessions, probe.sessions
         age = np.abs(p.age.to_numpy(float)[:, None] - g.age.to_numpy(float)[None])
-        gender = p.gender.to_numpy(object)[:, None] != g.gender.to_numpy(object)[None]
-        known = p.gender.notna().to_numpy()[:, None] & g.gender.notna().to_numpy()[None]
-        return -np.nan_to_num(age) - GENDER_PENALTY * (gender & known)
+        pg = p.gender.astype(object).where(p.gender.notna(), None).to_numpy()
+        gg = g.gender.astype(object).where(g.gender.notna(), None).to_numpy()
+        known = (pg != None)[:, None] & (gg != None)[None]
+        differs = known & (pg[:, None] != gg[None])
+        return -np.nan_to_num(age) - GENDER_PENALTY * differs
 
 
 def shuffle_gallery(S: np.ndarray, seed: int = SEED) -> np.ndarray:
