@@ -117,8 +117,9 @@ def _bars(sub: pd.DataFrame, labels: str, title: str, out: Path) -> None:
     ax.set_title(title, loc="left", color=INK)
     ax.grid(axis="y", visible=False)
     # legend below the axes: never on top of a bar or its error bar
-    fig.legend(*ax.get_legend_handles_labels(), frameon=False, loc="lower center",
-               ncol=2)
+    fig.legend(
+        *ax.get_legend_handles_labels(), frameon=False, loc="lower center", ncol=2
+    )
     fig.tight_layout(rect=(0, 0.35 / fig.get_figheight(), 1, 1))
     fig.savefig(out, dpi=200)
     plt.close(fig)

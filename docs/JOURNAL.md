@@ -532,3 +532,75 @@ Ablations (b3_lda, toutes modalités) :
 
 **Limites** : d → d3 trop peu nombreux pour conclure ; un seul découpage en
 5 plis ; hyperparamètres du siamois non réglés ; ECG en unités du header.
+
+---
+
+## 2026-11-19 — Modèle final, étapes 1-2 : cache brut et un encodeur par signal
+
+**Objectif** : préparer le modèle final (EEG, forme du battement cardiaque,
+respiration ; EDA, FC/HRV et oculométrie écartées) à partir des signaux bruts,
+et vérifier que chaque encodeur entraîné seul bat la LDA sur le même signal.
+
+**Ce qui a été fait** :
+- `reid/final/raw.py` + `scripts/reid_extract.py --raw` : cache
+  `cache/raw/<tâche>/<PID>_day-<d>.npz` (1,2 Go, jamais commité). Par
+  sous-segment (repos yeux fermés / ouverts, blocs yeux ouverts de la tâche
+  artefact) : EEG référence moyenne, 1-45 Hz, 128 Hz, float16 ; battements ECG
+  individuels (-250/+450 ms, 128 points) et leurs instants ; respiration
+  nettoyée à 25 Hz ; seuil crête-à-crête de la séance (médiane + 5 MAD des
+  époques de 2 s). 590 repos + 222 artefact, aucun échec. Rééchantillonnage
+  polyphase exact pour 998 / 1000 / 1024 Hz.
+- `reid/final/crops.py` (fenêtres), `encoders.py`, `model.py`
+  (`ContrastiveModel`, interface `ReIDModel` commune) ; modèles `f_<signal>_s<k>`
+  dans `scripts/reid_run.py`, qui lisent le cache brut.
+- 9 tests (`tests/reid/test_final.py`) : extraction sur P001, fenêtres qui
+  évitent un artefact, battements aberrants retirés, identité retrouvée sur
+  données synthétiques brutes (EEG et battement).
+
+**Choix et pourquoi** :
+- Repos seulement (EC + EO, 90 s par séance) : même épreuve que les baselines,
+  comparaison directe avec la LDA.
+- Fenêtres : EEG 4 s (tirage aléatoire sur une grille de 0,25 s, gardée si
+  toutes ses époques de 2 s passent le seuil) ; ECG 16 battements consécutifs
+  normalisés un à un (forme seule, les unités varient), battements corrélés
+  < 0,5 au battement médian retirés ; respiration 20 s normalisée. Embedding
+  de séance = moyenne des fenêtres sur une grille fixe (2 s, 8 battements, 5 s).
+- Encodeurs petits (~10⁴-10⁵ paramètres, ~170 personnes à deux jours par pli) :
+  EEG = spectre de Welch de chaque électrode (relatif + puissance totale) comme
+  jeton, plongement d'électrode appris, transformer 2 couches entre électrodes,
+  masquage aléatoire de 10 % des électrodes ; ECG = CNN 1D par battement,
+  moyenne sur le groupe ; respiration = CNN 1D, moyenne + max.
+- Perte SupCon, positifs = même personne **autre jour** ; les personnes venues
+  un seul jour servent de négatifs supplémentaires. Lots de 32 personnes × 2
+  jours × 4 fenêtres + 16 personnes d'un jour. AdamW, montée puis décroissance
+  cosinus, arrêt précoce sur les mêmes personnes de validation interne que la
+  LDA. Augmentations : gain par électrode (~10 %), décalage du pic R ± 2
+  points, bruit.
+- Calcul local sur le GPU du Mac (MPS) : ~30 s par pli et par signal.
+
+**Correctif** : 12 séances ont des pics > 65 mV qui débordaient du float16
+(valeurs infinies → embeddings NaN). L'EEG est écrêté à ± 60 mV à l'extraction
+(VERSION = 2) ; ces passages échouent de toute façon au test d'amplitude.
+
+**Résultats (d1 → d2, repos, 208 sondes, hasard 0,024, graine 0)** :
+
+| signal | encodeur | top-1 [IC 95 %] | top-5 | EER | LDA même signal |
+|---|---|---|---|---|---|
+| EEG | `f_eeg_s0` | 0,68 [0,62-0,74] | 0,87 | 0,15 | **0,78** |
+| battement ECG | `f_ecg_beat_s0` | 0,63 [0,56-0,69] | 0,86 | 0,15 | **0,69** |
+| respiration | `f_resp_s0` | **0,38** [0,32-0,45] | 0,72 | 0,24 | 0,09 |
+
+**Lecture** :
+- La respiration passe de 0,09 à 0,38 : la *forme* de l'onde respiratoire
+  identifie, alors que ses statistiques (fréquence, variabilité, I/E) non. À
+  vérifier : identité réelle ou empreinte du capteur (ceinture, serrage) ?
+- EEG et battement restent sous la LDA. L'arrêt précoce tombe très tôt (pas
+  100-600 sur ~1000) : le réseau surapprend vite, la validation interne (33
+  personnes) est bruitée et optimiste (0,70-0,85 contre 0,68 en test).
+- Aucun embedding ne prédit la cohorte mieux que la classe majoritaire.
+
+**Limites** : une seule graine ; aucun réglage ; les réglages à venir se feront
+sur la validation interne seulement (pas sur les plis de test).
+
+**Prochaine étape** : régler EEG et battement sur la validation interne (durée
+de fenêtre, puissance totale ou non, régularisation), puis fusion.
