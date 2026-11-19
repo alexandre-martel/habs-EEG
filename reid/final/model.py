@@ -80,13 +80,14 @@ class ContrastiveModel:
         encoder_kw: dict | None = None,
         tag: str = "",
         pool_crops: bool = False,
+        refit: bool = False,
     ) -> None:
         self.modality, self.conditions, self.seed = modality, tuple(conditions), seed
         self.steps, self.eval_every, self.patience = steps, eval_every, patience
         self.people, self.crops, self.negatives = people, crops, negatives
         self.lr, self.weight_decay, self.temperature = lr, weight_decay, temperature
         self.warmup, self.device = warmup, _device(device)
-        self.pool_crops = pool_crops
+        self.pool_crops, self.refit = pool_crops, refit
         self.crop_kw, self.encoder_kw = crop_kw or {}, encoder_kw or {}
         self.cropper = CROPS[modality](**self.crop_kw)
         self.name = f"f_{modality}{tag}_s{seed - SEED}"
@@ -102,6 +103,7 @@ class ContrastiveModel:
             "weight_decay": weight_decay,
             "temperature": temperature,
             "pool_crops": pool_crops,
+            "refit": refit,
             "device": self.device,
             "crop_kw": self.crop_kw,
             "encoder_kw": self.encoder_kw,
@@ -174,27 +176,26 @@ class ContrastiveModel:
         S = cosine(self._embed_pools(self.val_prb), self._embed_pools(self.val_gal))
         return float(topk(*rank_counts(S, self.val_truth), 1).mean())
 
-    def fit(self, train: SessionSet) -> None:
-        import torch
-        import torch.nn.functional as F
-
-        start = time.time()
-        torch.manual_seed(self.seed)
-        rng = np.random.default_rng(self.seed)
-        inner, gal, prb = inner_split(train, self.seed)
-        self.pool = self._pools(inner)
-        self.val_gal, self.val_prb = self._pools(gal), self._pools(prb)
-        self.val_truth = truth_index(gal.pids, prb.pids)
-
+    def _prepare(self, sessions: SessionSet) -> None:
+        """Crop pools of the training sessions and their grouping by person."""
+        self.pool = self._pools(sessions)
         ok = np.array([p is not None for p in self.pool])
-        self.day = inner.sessions.day.to_numpy()
+        self.day = sessions.sessions.day.to_numpy()
         groups = [
             idx[ok[idx]]
-            for idx in inner.sessions.groupby("participant_id").indices.values()
+            for idx in sessions.sessions.groupby("participant_id").indices.values()
         ]
         self.multi = [i for i in groups if len(np.unique(self.day[i])) >= 2]
         self.single = [i[0] for i in groups if len(np.unique(self.day[i])) == 1]
 
+    def _train(self, rng, n_steps: int, validate: bool) -> tuple:
+        """Fresh network trained for up to ``n_steps`` on the prepared pools.
+        With ``validate``: early stopping on the inner validation people, best
+        state restored. Returns (best val top-1, best step, last step, history)."""
+        import torch
+        import torch.nn.functional as F
+
+        torch.manual_seed(self.seed)
         self.net = ENCODERS[self.modality](**self.encoder_kw).to(self.device)
         if hasattr(self.net, "set_normalisation"):
             X, _, _ = self._batch(rng)
@@ -213,8 +214,8 @@ class ContrastiveModel:
                 * (1 + math.cos(math.pi * min(s, self.steps) / self.steps))
             ),
         )
-        best, best_state, best_step, history = -1.0, None, 0, []
-        for step in range(1, self.steps + 1):
+        best, best_state, best_step, history, step = -1.0, None, 0, [], 0
+        for step in range(1, n_steps + 1):
             self.net.train()
             X, person, day = self._batch(rng)
             x = augment(self.modality, torch.as_tensor(X, device=self.device))
@@ -232,7 +233,7 @@ class ContrastiveModel:
             loss.backward()
             opt.step()
             sched.step()
-            if step % self.eval_every == 0:
+            if validate and step % self.eval_every == 0:
                 acc = self._val_top1()
                 history.append((step, round(loss.item(), 4), round(acc, 4)))
                 if acc > best:
@@ -242,11 +243,30 @@ class ContrastiveModel:
                     }
                 elif step - best_step >= self.patience:
                     break
-        self.net.load_state_dict(best_state)
-        del self.pool, self.val_gal, self.val_prb
+        if validate:
+            self.net.load_state_dict(best_state)
+        return best, best_step, step, history
+
+    def fit(self, train: SessionSet) -> None:
+        """Early stopping on the inner split; with ``refit``, a fresh network is
+        then trained on *all* training people for the chosen number of steps
+        (as the LDA is refitted on everyone once its dimension is chosen)."""
+        start = time.time()
+        rng = np.random.default_rng(self.seed)
+        inner, gal, prb = inner_split(train, self.seed)
+        self._prepare(inner)
+        self.val_gal, self.val_prb = self._pools(gal), self._pools(prb)
+        self.val_truth = truth_index(gal.pids, prb.pids)
+        best, best_step, step, history = self._train(rng, self.steps, validate=True)
+        del self.val_gal, self.val_prb
+        if self.refit:
+            self._prepare(train)
+            self._train(rng, best_step, validate=False)
+        del self.pool
         print(
             f"  {self.name}: val top-1 {best:.3f} at step {best_step} "
-            f"(stopped {step}, {time.time() - start:.0f} s)",
+            f"(stopped {step}{', refitted on all' if self.refit else ''}, "
+            f"{time.time() - start:.0f} s)",
             flush=True,
         )
         self.config |= {

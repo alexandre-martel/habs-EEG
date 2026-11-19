@@ -33,4 +33,16 @@ MODELS = {
         f"f_eeg_pool_s{k}": _factory("eeg", SEED + k, tag="_pool", **EEG_POOL)
         for k in range(3)
     },
+    # refit: retrained on all training people up to the early-stopping step
+    **{
+        f"f_eeg_pool_refit_s{k}": _factory(
+            "eeg", SEED + k, tag="_pool_refit", refit=True, **EEG_POOL
+        )
+        for k in range(3)
+    },
+    **{
+        f"f_{m}_refit_s{k}": _factory(m, SEED + k, tag="_refit", refit=True)
+        for m in ("ecg_beat", "resp")
+        for k in range(3)
+    },
 }

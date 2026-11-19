@@ -124,8 +124,10 @@ def make_raw_dataset(n_multi=30, n_single=6, n_ch=8, seconds=20, seed=SEED):
     return pd.DataFrame(rows), DictStore(data)
 
 
-@pytest.mark.parametrize("modality", ["eeg", "ecg_beat"])
-def test_contrastive_encoder_finds_identity(modality: str) -> None:
+@pytest.mark.parametrize(
+    ("modality", "refit"), [("eeg", False), ("ecg_beat", False), ("eeg", True)]
+)
+def test_contrastive_encoder_finds_identity(modality: str, refit: bool) -> None:
     from reid.eval.matching import rank_counts, topk, truth_index
     from reid.final.model import ContrastiveModel
 
@@ -141,10 +143,16 @@ def test_contrastive_encoder_finds_identity(modality: str) -> None:
         people=12,
         negatives=4,
         device="cpu",
+        refit=refit,
+        pool_crops=refit,  # also covers session-level pooling
         encoder_kw={"n_channels": 8} if modality == "eeg" else {},
         crop_kw={"n_beats": 8, "stride": 4} if modality == "ecg_beat" else {},
     )
     model.fit(split.train)
+    if refit:  # the refitted network has seen every training person
+        assert len(model.multi) == len(
+            set(split.train.pids[split.train.sessions.day == 2])
+        )
     S = model.score(split.gallery, split.probe)
     truth = truth_index(split.gallery.pids, split.probe.pids)
     assert topk(*rank_counts(S, truth), 1).mean() >= 0.7  # chance: 0.1

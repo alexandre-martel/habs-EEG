@@ -656,3 +656,37 @@ alors que la LDA est réajustée sur toutes une fois sa dimension choisie.
 
 **Prochaine étape** : réentraîner sur toutes les personnes d'entraînement
 jusqu'au pas choisi (parité avec la LDA), puis fusion des trois encodeurs.
+
+---
+
+## 2026-11-19 — Modèle final, étape 2 ter : réentraînement sur toutes les personnes
+
+**Objectif** : même traitement que la LDA. Jusqu'ici le réseau n'apprenait que
+sur 80 % des personnes d'entraînement (les 20 % de validation servaient à
+l'arrêt précoce) ; la LDA est réajustée sur toutes une fois sa dimension choisie.
+
+**Ce qui a été fait** : option `refit` de `ContrastiveModel` : après l'arrêt
+précoce, un réseau neuf (même graine, même calendrier de taux d'apprentissage)
+est entraîné sur toutes les personnes d'entraînement jusqu'au pas retenu, sans
+validation. Décidé avant de voir les résultats (parité de protocole, pas un
+réglage). Test : sur synthétique, le réseau réentraîné voit toutes les personnes
+et retrouve l'identité (couvre aussi `pool_crops`).
+
+**Plis de test (d1 → d2, repos, 208 sondes ; moyenne de 3 graines, plage)** :
+
+| signal | sans réentraînement | **avec réentraînement** | LDA même signal |
+|---|---|---|---|
+| EEG (moyenne de 8 fenêtres) | 0,708 (0,70-0,72) | **0,726** (0,72-0,74), EER 0,12 | 0,784 |
+| battement ECG | 0,630 (graine 0) | **0,659** (0,65-0,67), EER 0,15 | 0,688 |
+| respiration | 0,385 (graine 0) | 0,338 (0,32-0,35), EER 0,23 | 0,087 |
+
+**Lecture** : le réentraînement aide un peu l'EEG et le battement (+0,02 à
++0,03), sans les amener au niveau de la LDA ; la respiration ne change pas au-delà
+de la variation entre graines (une seule graine sans réentraînement). La
+respiration apprise reste l'apport nouveau : 0,34 contre 0,09 pour ses
+statistiques, information que la LDA n'exploite pas. Aucun embedding ne prédit
+la cohorte mieux que la classe majoritaire (0,33-0,39 contre 0,44).
+
+**Prochaine étape** : fusion des trois signaux, en comparant (a) un modèle
+appris de bout en bout et (b) une fusion des scores LDA (EEG + battement) et de
+l'encodeur respiration, poids choisis sur validation interne.
