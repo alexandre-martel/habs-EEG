@@ -32,6 +32,7 @@ class SpectralTokenEEG(nn.Module):
         fmax: float = 45.0,
         seg: int = 2 * EEG_RATE,
         mask_p: float = 0.1,
+        total_power: bool = True,
         dropout: float = 0.1,
     ) -> None:
         super().__init__()
@@ -41,7 +42,8 @@ class SpectralTokenEEG(nn.Module):
             "bins", torch.nonzero((freqs >= fmin) & (freqs <= fmax))[:, 0]
         )
         self.register_buffer("window", torch.hann_window(seg))
-        n_feat = len(self.bins) + 1
+        self.total_power = total_power
+        n_feat = len(self.bins) + int(total_power)
         self.register_buffer("mu", torch.zeros(n_channels, n_feat))
         self.register_buffer("sd", torch.ones(n_channels, n_feat))
         self.proj = nn.Linear(n_feat, dim)
@@ -59,7 +61,8 @@ class SpectralTokenEEG(nn.Module):
         segs = x.unfold(-1, self.seg, self.seg // 2) * self.window
         power = torch.fft.rfft(segs, dim=-1).abs().pow(2).mean(-2)[..., self.bins]
         total = power.sum(-1, keepdim=True) + 1e-12
-        return torch.cat([torch.log10(power / total + 1e-12), torch.log10(total)], -1)
+        rel = torch.log10(power / total + 1e-12)
+        return torch.cat([rel, torch.log10(total)], -1) if self.total_power else rel
 
     def set_normalisation(self, tokens: torch.Tensor) -> None:
         """Standardise each (electrode, feature) with training statistics."""

@@ -604,3 +604,55 @@ sur la validation interne seulement (pas sur les plis de test).
 
 **Prochaine étape** : régler EEG et battement sur la validation interne (durée
 de fenêtre, puissance totale ou non, régularisation), puis fusion.
+
+---
+
+## 2026-11-19 — Modèle final, étape 2 bis : réglage sur validation interne
+
+**Objectif** : rapprocher les encodeurs EEG et battement de la LDA sans
+regarder les plis de test.
+
+**Méthode** : chaque configuration est entraînée sur les 5 plis et jugée par
+la moyenne du top-1 de **validation interne** (mêmes 20 % de personnes que la
+LDA) ; les plis de test ne sont lancés qu'une fois, sur la configuration
+retenue. Script de balayage hors dépôt (bloc-notes de session).
+
+**Validation interne (moyenne 5 plis, ~33 personnes par pli)** :
+
+| configuration | EEG | battement |
+|---|---|---|
+| LDA, même découpage (meilleure dimension, donc flattée) | 0,817 | 0,756 |
+| encodeur de départ (fenêtres isolées, 32 personnes / lot) | 0,780 | 0,732 |
+| sans puissance totale / fenêtre 8 s / plus petit / masquage 30 % / lr 3e-4 | 0,756-0,786 | — |
+| 8 ou 32 battements par groupe / lr 3e-4 | — | 0,720-0,738 |
+| moyenne de 4 fenêtres par (personne, jour) avant la perte | 0,793 | 0,738 |
+| **moyenne de 8 fenêtres, 64 personnes / lot** | **0,841** | 0,702 |
+| 8 fenêtres non moyennées, 64 personnes / lot | 0,762 | — |
+| moyenne de 16 fenêtres, 64 personnes / lot | 0,848 | — |
+| moyenne de 8 fenêtres, 96 personnes / lot | 0,835 | — |
+
+Les hyperparamètres classiques ne changent rien (bruit ± 0,03). Ce qui aide
+l'EEG : **apprendre au niveau de la séance** (option `pool_crops` : l'unité de
+la perte est la moyenne normalisée de 8 fenêtres d'une personne un jour donné,
+comme à l'évaluation), et non la taille des lots. Retenu : 8 fenêtres, 64
+personnes (16 fenêtres n'est pas différent et coûte deux fois plus). Rien
+n'aide le battement : on garde l'encodeur de départ.
+
+**Plis de test, une seule fois (d1 → d2, repos, 208 sondes)** :
+
+| modèle | top-1 [IC 95 %] | top-5 | hongrois | EER |
+|---|---|---|---|---|
+| `f_eeg_pool_s0` | 0,70 [0,64-0,76] | 0,90 | 0,84 | 0,13 |
+| `f_eeg_pool_s1` | 0,71 [0,64-0,76] | 0,89 | 0,80 | 0,11 |
+| `f_eeg_pool_s2` | 0,72 [0,66-0,78] | 0,90 | 0,79 | 0,11 |
+| `f_eeg_s0` (départ) | 0,68 [0,62-0,74] | 0,87 | 0,72 | 0,15 |
+| `b3_lda_eeg` | **0,78** [0,73-0,84] | 0,91 | 0,85 | 0,11 |
+
+**Lecture** : le gain de validation ne se transfère qu'en partie (+0,03 en
+top-1, +0,03 en top-5, EER 0,15 → 0,11). L'encodeur EEG reste sous la LDA.
+Un désavantage de protocole reste : le réseau n'est entraîné que sur 80 % des
+personnes d'entraînement (les 20 % de validation servent à l'arrêt précoce),
+alors que la LDA est réajustée sur toutes une fois sa dimension choisie.
+
+**Prochaine étape** : réentraîner sur toutes les personnes d'entraînement
+jusqu'au pas choisi (parité avec la LDA), puis fusion des trois encodeurs.

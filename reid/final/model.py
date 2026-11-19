@@ -79,12 +79,14 @@ class ContrastiveModel:
         crop_kw: dict | None = None,
         encoder_kw: dict | None = None,
         tag: str = "",
+        pool_crops: bool = False,
     ) -> None:
         self.modality, self.conditions, self.seed = modality, tuple(conditions), seed
         self.steps, self.eval_every, self.patience = steps, eval_every, patience
         self.people, self.crops, self.negatives = people, crops, negatives
         self.lr, self.weight_decay, self.temperature = lr, weight_decay, temperature
         self.warmup, self.device = warmup, _device(device)
+        self.pool_crops = pool_crops
         self.crop_kw, self.encoder_kw = crop_kw or {}, encoder_kw or {}
         self.cropper = CROPS[modality](**self.crop_kw)
         self.name = f"f_{modality}{tag}_s{seed - SEED}"
@@ -99,6 +101,7 @@ class ContrastiveModel:
             "lr": lr,
             "weight_decay": weight_decay,
             "temperature": temperature,
+            "pool_crops": pool_crops,
             "device": self.device,
             "crop_kw": self.crop_kw,
             "encoder_kw": self.encoder_kw,
@@ -216,6 +219,9 @@ class ContrastiveModel:
             X, person, day = self._batch(rng)
             x = augment(self.modality, torch.as_tensor(X, device=self.device))
             z = F.normalize(self.net(x), dim=1)
+            if self.pool_crops:  # one unit = mean of a (person, day)'s crops
+                z = F.normalize(z.reshape(-1, self.crops, z.shape[1]).mean(1), dim=1)
+                person, day = person[:: self.crops], day[:: self.crops]
             loss = supcon_loss(
                 z,
                 torch.as_tensor(person, device=self.device),
