@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
+import os
 import platform
 import subprocess
 import time
 from collections.abc import Callable
 from datetime import datetime
 from importlib.metadata import PackageNotFoundError, version
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -176,8 +178,9 @@ def _short(summary: dict) -> dict:
 
 
 def save_run(record: dict) -> None:
-    """results/runs/<date>_<model>_<scenario>_<task>[_<part>].json"""
-    runs = RESULTS / "runs"
+    """results/runs/<date>_<model>_<scenario>_<task>[_<part>].json (or the
+    directory named by REID_RUNS, e.g. out_dir/runs on the HABS GPU)."""
+    runs = Path(os.environ.get("REID_RUNS") or RESULTS / "runs")
     runs.mkdir(parents=True, exist_ok=True)
     tasks = record["task"] + (
         f"-to-{record['probe_task']}" if record["probe_task"] != record["task"] else ""
@@ -186,4 +189,4 @@ def save_run(record: dict) -> None:
     part = f"_{record['part']}" if record.get("part") else ""
     path = runs / f"{stamp}_{record['model']}_{record['scenario']}_{tasks}{part}.json"
     path.write_text(json.dumps(record, indent=1, default=float))
-    print(f"run saved -> {path.relative_to(RESULTS.parent)}")
+    print(f"run saved -> {path}")

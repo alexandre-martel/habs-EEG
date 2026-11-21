@@ -532,3 +532,161 @@ Ablations (b3_lda, toutes modalités) :
 
 **Limites** : d → d3 trop peu nombreux pour conclure ; un seul découpage en
 5 plis ; hyperparamètres du siamois non réglés ; ECG en unités du header.
+
+---
+
+## 2026-11-19 — Modèle final, étapes 1-2 : cache brut et un encodeur par signal
+
+**Objectif** : préparer le modèle final (EEG, forme du battement cardiaque,
+respiration ; EDA, FC/HRV et oculométrie écartées) à partir des signaux bruts,
+et vérifier que chaque encodeur entraîné seul bat la LDA sur le même signal.
+
+**Ce qui a été fait** :
+- `reid/final/raw.py` + `scripts/reid_extract.py --raw` : cache
+  `cache/raw/<tâche>/<PID>_day-<d>.npz` (1,2 Go, jamais commité). Par
+  sous-segment (repos yeux fermés / ouverts, blocs yeux ouverts de la tâche
+  artefact) : EEG référence moyenne, 1-45 Hz, 128 Hz, float16 ; battements ECG
+  individuels (-250/+450 ms, 128 points) et leurs instants ; respiration
+  nettoyée à 25 Hz ; seuil crête-à-crête de la séance (médiane + 5 MAD des
+  époques de 2 s). 590 repos + 222 artefact, aucun échec. Rééchantillonnage
+  polyphase exact pour 998 / 1000 / 1024 Hz.
+- `reid/final/crops.py` (fenêtres), `encoders.py`, `model.py`
+  (`ContrastiveModel`, interface `ReIDModel` commune) ; modèles `f_<signal>_s<k>`
+  dans `scripts/reid_run.py`, qui lisent le cache brut.
+- 9 tests (`tests/reid/test_final.py`) : extraction sur P001, fenêtres qui
+  évitent un artefact, battements aberrants retirés, identité retrouvée sur
+  données synthétiques brutes (EEG et battement).
+
+**Choix et pourquoi** :
+- Repos seulement (EC + EO, 90 s par séance) : même épreuve que les baselines,
+  comparaison directe avec la LDA.
+- Fenêtres : EEG 4 s (tirage aléatoire sur une grille de 0,25 s, gardée si
+  toutes ses époques de 2 s passent le seuil) ; ECG 16 battements consécutifs
+  normalisés un à un (forme seule, les unités varient), battements corrélés
+  < 0,5 au battement médian retirés ; respiration 20 s normalisée. Embedding
+  de séance = moyenne des fenêtres sur une grille fixe (2 s, 8 battements, 5 s).
+- Encodeurs petits (~10⁴-10⁵ paramètres, ~170 personnes à deux jours par pli) :
+  EEG = spectre de Welch de chaque électrode (relatif + puissance totale) comme
+  jeton, plongement d'électrode appris, transformer 2 couches entre électrodes,
+  masquage aléatoire de 10 % des électrodes ; ECG = CNN 1D par battement,
+  moyenne sur le groupe ; respiration = CNN 1D, moyenne + max.
+- Perte SupCon, positifs = même personne **autre jour** ; les personnes venues
+  un seul jour servent de négatifs supplémentaires. Lots de 32 personnes × 2
+  jours × 4 fenêtres + 16 personnes d'un jour. AdamW, montée puis décroissance
+  cosinus, arrêt précoce sur les mêmes personnes de validation interne que la
+  LDA. Augmentations : gain par électrode (~10 %), décalage du pic R ± 2
+  points, bruit.
+- Calcul local sur le GPU du Mac (MPS) : ~30 s par pli et par signal.
+
+**Correctif** : 12 séances ont des pics > 65 mV qui débordaient du float16
+(valeurs infinies → embeddings NaN). L'EEG est écrêté à ± 60 mV à l'extraction
+(VERSION = 2) ; ces passages échouent de toute façon au test d'amplitude.
+
+**Résultats (d1 → d2, repos, 208 sondes, hasard 0,024, graine 0)** :
+
+| signal | encodeur | top-1 [IC 95 %] | top-5 | EER | LDA même signal |
+|---|---|---|---|---|---|
+| EEG | `f_eeg_s0` | 0,68 [0,62-0,74] | 0,87 | 0,15 | **0,78** |
+| battement ECG | `f_ecg_beat_s0` | 0,63 [0,56-0,69] | 0,86 | 0,15 | **0,69** |
+| respiration | `f_resp_s0` | **0,38** [0,32-0,45] | 0,72 | 0,24 | 0,09 |
+
+**Lecture** :
+- La respiration passe de 0,09 à 0,38 : la *forme* de l'onde respiratoire
+  identifie, alors que ses statistiques (fréquence, variabilité, I/E) non. À
+  vérifier : identité réelle ou empreinte du capteur (ceinture, serrage) ?
+- EEG et battement restent sous la LDA. L'arrêt précoce tombe très tôt (pas
+  100-600 sur ~1000) : le réseau surapprend vite, la validation interne (33
+  personnes) est bruitée et optimiste (0,70-0,85 contre 0,68 en test).
+- Aucun embedding ne prédit la cohorte mieux que la classe majoritaire.
+
+**Limites** : une seule graine ; aucun réglage ; les réglages à venir se feront
+sur la validation interne seulement (pas sur les plis de test).
+
+**Prochaine étape** : régler EEG et battement sur la validation interne (durée
+de fenêtre, puissance totale ou non, régularisation), puis fusion.
+
+---
+
+## 2026-11-19 — Modèle final, étape 2 bis : réglage sur validation interne
+
+**Objectif** : rapprocher les encodeurs EEG et battement de la LDA sans
+regarder les plis de test.
+
+**Méthode** : chaque configuration est entraînée sur les 5 plis et jugée par
+la moyenne du top-1 de **validation interne** (mêmes 20 % de personnes que la
+LDA) ; les plis de test ne sont lancés qu'une fois, sur la configuration
+retenue. Script de balayage hors dépôt (bloc-notes de session).
+
+**Validation interne (moyenne 5 plis, ~33 personnes par pli)** :
+
+| configuration | EEG | battement |
+|---|---|---|
+| LDA, même découpage (meilleure dimension, donc flattée) | 0,817 | 0,756 |
+| encodeur de départ (fenêtres isolées, 32 personnes / lot) | 0,780 | 0,732 |
+| sans puissance totale / fenêtre 8 s / plus petit / masquage 30 % / lr 3e-4 | 0,756-0,786 | — |
+| 8 ou 32 battements par groupe / lr 3e-4 | — | 0,720-0,738 |
+| moyenne de 4 fenêtres par (personne, jour) avant la perte | 0,793 | 0,738 |
+| **moyenne de 8 fenêtres, 64 personnes / lot** | **0,841** | 0,702 |
+| 8 fenêtres non moyennées, 64 personnes / lot | 0,762 | — |
+| moyenne de 16 fenêtres, 64 personnes / lot | 0,848 | — |
+| moyenne de 8 fenêtres, 96 personnes / lot | 0,835 | — |
+
+Les hyperparamètres classiques ne changent rien (bruit ± 0,03). Ce qui aide
+l'EEG : **apprendre au niveau de la séance** (option `pool_crops` : l'unité de
+la perte est la moyenne normalisée de 8 fenêtres d'une personne un jour donné,
+comme à l'évaluation), et non la taille des lots. Retenu : 8 fenêtres, 64
+personnes (16 fenêtres n'est pas différent et coûte deux fois plus). Rien
+n'aide le battement : on garde l'encodeur de départ.
+
+**Plis de test, une seule fois (d1 → d2, repos, 208 sondes)** :
+
+| modèle | top-1 [IC 95 %] | top-5 | hongrois | EER |
+|---|---|---|---|---|
+| `f_eeg_pool_s0` | 0,70 [0,64-0,76] | 0,90 | 0,84 | 0,13 |
+| `f_eeg_pool_s1` | 0,71 [0,64-0,76] | 0,89 | 0,80 | 0,11 |
+| `f_eeg_pool_s2` | 0,72 [0,66-0,78] | 0,90 | 0,79 | 0,11 |
+| `f_eeg_s0` (départ) | 0,68 [0,62-0,74] | 0,87 | 0,72 | 0,15 |
+| `b3_lda_eeg` | **0,78** [0,73-0,84] | 0,91 | 0,85 | 0,11 |
+
+**Lecture** : le gain de validation ne se transfère qu'en partie (+0,03 en
+top-1, +0,03 en top-5, EER 0,15 → 0,11). L'encodeur EEG reste sous la LDA.
+Un désavantage de protocole reste : le réseau n'est entraîné que sur 80 % des
+personnes d'entraînement (les 20 % de validation servent à l'arrêt précoce),
+alors que la LDA est réajustée sur toutes une fois sa dimension choisie.
+
+**Prochaine étape** : réentraîner sur toutes les personnes d'entraînement
+jusqu'au pas choisi (parité avec la LDA), puis fusion des trois encodeurs.
+
+---
+
+## 2026-11-19 — Modèle final, étape 2 ter : réentraînement sur toutes les personnes
+
+**Objectif** : même traitement que la LDA. Jusqu'ici le réseau n'apprenait que
+sur 80 % des personnes d'entraînement (les 20 % de validation servaient à
+l'arrêt précoce) ; la LDA est réajustée sur toutes une fois sa dimension choisie.
+
+**Ce qui a été fait** : option `refit` de `ContrastiveModel` : après l'arrêt
+précoce, un réseau neuf (même graine, même calendrier de taux d'apprentissage)
+est entraîné sur toutes les personnes d'entraînement jusqu'au pas retenu, sans
+validation. Décidé avant de voir les résultats (parité de protocole, pas un
+réglage). Test : sur synthétique, le réseau réentraîné voit toutes les personnes
+et retrouve l'identité (couvre aussi `pool_crops`).
+
+**Plis de test (d1 → d2, repos, 208 sondes ; moyenne de 3 graines, plage)** :
+
+| signal | sans réentraînement | **avec réentraînement** | LDA même signal |
+|---|---|---|---|
+| EEG (moyenne de 8 fenêtres) | 0,708 (0,70-0,72) | **0,726** (0,72-0,74), EER 0,12 | 0,784 |
+| battement ECG | 0,630 (graine 0) | **0,659** (0,65-0,67), EER 0,15 | 0,688 |
+| respiration | 0,385 (graine 0) | 0,338 (0,32-0,35), EER 0,23 | 0,087 |
+
+**Lecture** : le réentraînement aide un peu l'EEG et le battement (+0,02 à
++0,03), sans les amener au niveau de la LDA ; la respiration ne change pas au-delà
+de la variation entre graines (une seule graine sans réentraînement). La
+respiration apprise reste l'apport nouveau : 0,34 contre 0,09 pour ses
+statistiques, information que la LDA n'exploite pas. Aucun embedding ne prédit
+la cohorte mieux que la classe majoritaire (0,33-0,39 contre 0,44).
+
+**Prochaine étape** : fusion des trois signaux, en comparant (a) un modèle
+appris de bout en bout et (b) une fusion des scores LDA (EEG + battement) et de
+l'encodeur respiration, poids choisis sur validation interne.
