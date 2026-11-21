@@ -3,3 +3,13 @@ out/
 .venv/
 __pycache__/
 *.pyc
+
+# Re-identification project: never commit raw data or bulky features.
+data/
+cache/
+*.npz
+*.parquet
+!results/**/*.npz
+!results/**/*.parquet
+.pytest_cache/
+.ruff_cache/

@@ -1,0 +1,6 @@
+# Job run by reid/platform.py on the HABS platform (or `habs run` locally).
+# Re-identification feature extraction; split long tasks into shards so that
+# each job stays under the one-hour limit (e.g. video: shard 0/4 ... 3/4).
+tasks: [rest, artefact]          # rest, artefact, video
+modalities: [eeg, ecg, eda, resp]
+shard: 0/1                       # i/n
