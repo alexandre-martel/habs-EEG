@@ -1,12 +1,14 @@
 """Shared constants: paths, seed, dataset layout, signal-processing choices."""
 
+import os
 from pathlib import Path
 
 SEED = 1337
 
 REPO = Path(__file__).resolve().parents[1]
 RESULTS = REPO / "results"
-CACHE = REPO / "cache"
+# REID_CACHE: cache root elsewhere (HABS GPU job: local scratch, not out_dir)
+CACHE = Path(os.environ.get("REID_CACHE") or REPO / "cache")
 FEATURES = CACHE / "features"
 
 HF_REPO = "HABSteam/multimodal-eeg-emotion"

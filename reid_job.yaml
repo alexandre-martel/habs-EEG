@@ -1,6 +1,19 @@
-# Job run by reid/platform.py on the HABS platform (or `habs run` locally).
-# Re-identification feature extraction; split long tasks into shards so that
-# each job stays under the one-hour limit (e.g. video: shard 0/4 ... 3/4).
-tasks: [rest, artefact]          # rest, artefact, video
-modalities: [eeg, ecg, eda, resp]
-shard: 0/1                       # i/n
+# Job run by reid/platform.py on the HABS platform (process.py delegates to it),
+# or locally with `habs run --data ./sample --out ./out`.
+#
+# job: features -> feature cache only, into out_dir/features (shardable, e.g.
+#                  video: shard 0/4 ... 3/4 to stay under one hour per job)
+# job: final    -> caches extracted into local scratch, then each group of
+#                  models evaluated in its own process (groups run at once);
+#                  run files in out_dir/runs, logs in out_dir/logs.
+job: final
+tasks: [rest]                    # rest, artefact, video
+modalities: [eeg, ecg, resp]     # feature cache (LDA members); raw crops always
+shard: 0/1                       # job: features only (i/n)
+workers: 0                       # extraction processes, 0 = every CPU
+eval_task: rest
+scenarios: [d1_to_d2]
+groups:                          # one process per group, one seed per group
+  - [fuse_ref_lda3_s0, fuse_lda3_resp_s0, fuse_lda2_resp_s0, fuse_enc3_s0, fuse_enc3_eq_s0, fuse_all5_s0, fuse_all5_eq_s0]
+  - [fuse_lda3_resp_s1, fuse_lda2_resp_s1, fuse_enc3_s1, fuse_enc3_eq_s1, fuse_all5_s1, fuse_all5_eq_s1]
+  - [fuse_lda3_resp_s2, fuse_lda2_resp_s2, fuse_enc3_s2, fuse_enc3_eq_s2, fuse_all5_s2, fuse_all5_eq_s2]

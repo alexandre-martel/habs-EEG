@@ -155,7 +155,7 @@ class LdaModel:
         inner = train.subset(~df.participant_id.isin(val).to_numpy())
         gal = train.subset((df.participant_id.isin(val) & (df.day == 1)).to_numpy())
         prb = train.subset((df.participant_id.isin(val) & (df.day == 2)).to_numpy())
-        scores = {}
+        scores, matrices = {}, {}
         for n in self.grid:
             pipe = self._fit_pipeline(inner, n)
             p, g = self._embed(pipe, prb), self._embed(pipe, gal)
@@ -165,8 +165,11 @@ class LdaModel:
             else:
                 S = cosine(p, g)
             greater, ties = rank_counts(S, truth_index(gal.pids, prb.pids))
-            scores[n] = topk(greater, ties, 1).mean()
-        return max(scores, key=scores.get)
+            scores[n], matrices[n] = topk(greater, ties, 1).mean(), S
+        best = max(scores, key=scores.get)
+        # inner-validation scores of the chosen dimension (score fusion)
+        self.val_scores_, self.val_pids_ = matrices[best], (gal.pids, prb.pids)
+        return best
 
     def fit(self, train: SessionSet) -> None:
         self.n_ = self._select_n(train)

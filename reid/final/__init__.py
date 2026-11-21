@@ -46,3 +46,68 @@ MODELS = {
         for k in range(3)
     },
 }
+
+
+# -- score fusion (reid.final.fusion) ------------------------------------------
+#: LDA members read the feature cache, encoders the raw cache. Encoders of a
+#: fusion share the LDA's inner split (split_seed=SEED) so that their
+#: inner-validation scores line up; their training seed still varies.
+def _lda(*modalities):
+    def make():
+        from reid.baselines.b3_lda_plda import LdaModel
+
+        return LdaModel(modalities)
+
+    return make, "features"
+
+
+def _members(k: int) -> dict:
+    split = {"split_seed": SEED, "refit": True}
+    return {
+        "lda_eeg": _lda("eeg"),
+        "lda_ecg_beat": _lda("ecg_beat"),
+        "lda_eeg+ecg_beat+resp": _lda("eeg", "ecg_beat", "resp"),
+        "enc_eeg": (
+            _factory("eeg", SEED + k, tag="_pool_refit", **split, **EEG_POOL),
+            "raw",
+        ),
+        "enc_ecg_beat": (_factory("ecg_beat", SEED + k, tag="_refit", **split), "raw"),
+        "enc_resp": (_factory("resp", SEED + k, tag="_refit", **split), "raw"),
+    }
+
+
+#: name -> (members, weights). "tuned": simplex weights on inner validation.
+FUSIONS = {
+    "fuse_ref_lda3": (("lda_eeg+ecg_beat+resp",), "tuned"),
+    "fuse_lda3_resp": (("lda_eeg+ecg_beat+resp", "enc_resp"), "tuned"),
+    "fuse_lda2_resp": (("lda_eeg", "lda_ecg_beat", "enc_resp"), "tuned"),
+    "fuse_enc3": (("enc_eeg", "enc_ecg_beat", "enc_resp"), "tuned"),
+    "fuse_enc3_eq": (("enc_eeg", "enc_ecg_beat", "enc_resp"), "equal"),
+    "fuse_all5": (
+        ("lda_eeg", "lda_ecg_beat", "enc_eeg", "enc_ecg_beat", "enc_resp"),
+        "tuned",
+    ),
+    "fuse_all5_eq": (
+        ("lda_eeg", "lda_ecg_beat", "enc_eeg", "enc_ecg_beat", "enc_resp"),
+        "equal",
+    ),
+}
+
+
+def _fusion(name: str, k: int):
+    keys, weights = FUSIONS[name]
+
+    def make():
+        from reid.final.fusion import ScoreFusion
+
+        members = _members(k)
+        tagged = {
+            f"{key}_s{k}" if key.startswith("enc") else key: members[key]
+            for key in keys
+        }
+        return ScoreFusion(f"{name}_s{k}", tagged, weights)
+
+    return make
+
+
+MODELS |= {f"{n}_s{k}": _fusion(n, k) for n in FUSIONS for k in range(3)}
