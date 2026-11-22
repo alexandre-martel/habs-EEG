@@ -1,0 +1,72 @@
+name: HABS results
+
+# Manual only, and no GPU: downloads what a HABS job wrote to the team's
+# storage (out/<job>/) and attaches it to this run as an artifact, for whoever
+# has no results link. Actions -> "HABS results" -> Run workflow, with the job
+# id (empty = the team's latest job). Like submit.yml, it only works on main.
+#
+# The repository is public, so the artifact is limited to aggregate files:
+# job.json, runs/*.json (metrics), logs/ and the job's console output. The
+# failure lists (failures_*.csv) name participants and are left out; their
+# line counts are printed instead.
+on:
+  workflow_dispatch:
+    inputs:
+      job:
+        description: "HABS job id, e.g. 20261122T003121-0fcdc8 (empty = latest)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  # Same values as submit.yml.
+  HABS_KEY: "c7b8687f-966e-44a6-badd-52b4a30fb6a9"
+  HABS_TENANT_ID: 6fc0e479-449c-4700-b89c-7c4848058e30
+  HABS_STORAGE: sthabshackweu
+  HABS_CLIENT: "habs-hack[storage] @ git+https://github.com/HABS-BRAIN/habs-hack@main"
+
+jobs:
+  fetch:
+    name: fetch job results
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ env.HABS_KEY }}
+          tenant-id: ${{ env.HABS_TENANT_ID }}
+          allow-no-subscriptions: true
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - run: pip install --quiet "$HABS_CLIENT"
+
+      - name: status
+        env:
+          JOB: ${{ inputs.job }}
+        run: habs status ${JOB:+"$JOB"}
+
+      - name: download
+        env:
+          JOB: ${{ inputs.job }}
+        run: |
+          habs ls ${JOB:+"$JOB"}
+          habs get ${JOB:+"$JOB"} --out results_gpu
+          habs logs ${JOB:+"$JOB"} > results_gpu/console.log 2>&1 || true
+          for f in $(find results_gpu -name 'failures_*.csv'); do
+            echo "$f: $(($(wc -l < "$f") - 1)) failed session(s), not uploaded"
+            rm "$f"
+          done
+          find results_gpu -type f | sort
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: habs-results-${{ inputs.job || 'latest' }}
+          path: results_gpu
+          retention-days: 7
+          if-no-files-found: error

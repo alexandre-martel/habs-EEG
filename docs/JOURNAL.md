@@ -757,3 +757,22 @@ majoritaire à 0,44 (aucun embedding ne la prédit mieux).
 pré-entraînement « world model » de l'encodeur EEG sur l'EEG des vidéos
 (seulement disponible sur le GPU) ; fusion apprise de bout en bout à comparer à
 la fusion à poids égaux.
+
+## 2026-11-22 — Récupérer les résultats d'un job GPU depuis GitHub
+
+Le premier job GPU (`20261122T003121-0fcdc8`) a été soumis par `submit.yml`,
+dont l'étape `habs watch` abandonne au bout d'1 h, alors que les résultats
+restent dans le stockage de l'équipe (`out/<job>/`). Sans lien de résultats,
+on ne pouvait pas les lire.
+
+Ajout de `.github/workflows/results.yml` (hors reid/, signalé) : workflow
+manuel, sans GPU ni nouveau job. Il se connecte avec la même clé d'équipe
+que `submit.yml` (donc seulement depuis main), affiche `habs status`,
+télécharge `out/<job>/` par `habs get` plus la sortie console (`habs logs`),
+et joint le tout au run en artefact conservé 7 jours. Le repo étant public,
+les listes d'échecs (`failures_*.csv`, qui nomment des participants) sont
+retirées de l'artefact ; seul leur nombre de lignes est affiché.
+
+Testé en local : client `habs` sur un stockage simulé (`HABS_STORE_DIR`),
+étapes du workflow exécutées telles quelles, avec un id de job et sans id
+(dernier job). Le fichier d'échecs est bien écarté, le reste est conservé.
