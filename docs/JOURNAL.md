@@ -690,3 +690,70 @@ la cohorte mieux que la classe majoritaire (0,33-0,39 contre 0,44).
 **Prochaine étape** : fusion des trois signaux, en comparant (a) un modèle
 appris de bout en bout et (b) une fusion des scores LDA (EEG + battement) et de
 l'encodeur respiration, poids choisis sur validation interne.
+
+---
+
+## 2026-11-22 — Fusion dans main, modèle final étape 3 : fusion des scores
+
+**Fusion dans main** (avec l'accord explicite) : `reid/baselines` puis
+`reid/final` fusionnées dans `main`. Conflit sur `process.py` : la version de
+l'équipe (classification) est gardée ; le point d'entrée reid est déplacé dans
+`reid/platform.py`. Pour les jobs GPU (la clé ne marche que depuis `main`),
+`process.py` délègue temporairement à `reid/platform.py`, le code de l'équipe
+restant en commentaire à l'identique (un `git revert` du commit le rétablit).
+Signalé à l'utilisateur ; à coordonner avec l'équipe.
+
+**Job GPU** (`reid_job.yaml`, `job: final`) : une job ne lit pas la sortie d'une
+autre, donc tout se fait dans une seule : extraction des deux caches (features et
+crops bruts) en parallèle dans un scratch local, puis un processus par groupe de
+modèles (une graine par groupe) ; runs dans `out_dir/runs`, journaux dans
+`out_dir/logs`, matériel et durées dans `out_dir/job.json`. Testé de bout en bout
+sur `sample/` (pas de sonde jour 2 dans l'échantillon : les modèles sont sautés).
+
+**Fusion des scores** (`reid/final/fusion.py`, `ScoreFusion`) : tout `ReIDModel`
+peut être membre, chacun lisant son propre cache. Les scores de chaque membre
+sont z-normalisés par sonde (sur la galerie), puis sommés avec des poids. Poids
+« réglés » : simplexe au pas 0,1, top-1 de validation interne (départage MRR puis
+proximité des poids égaux), à partir des scores de validation que la LDA (à sa
+dimension retenue) et l'encodeur (à son pas d'arrêt) calculent déjà sans les
+personnes de validation : pas de second entraînement. Les encodeurs d'une fusion
+partagent le split interne de la LDA (`split_seed`). Poids « égaux » : rien de
+réglé. Les 7 configurations ci-dessous ont été fixées avant les résultats et
+lancées une fois chacune.
+
+**Plis de test (d1 → d2, repos, 208 sondes, chance 0,024 ; 3 graines des encodeurs)** :
+
+| fusion | membres | top-1 (graines 0 / 1 / 2) | moyenne | top-5 | EER |
+|---|---|---|---|---|---|
+| référence | LDA EEG + battement + resp. (features concaténées) | 0,827 [0,77-0,88] | 0,827 | 0,952 | 0,059 |
+| LDA3 + resp. | référence + encodeur resp., réglés | 0,851 / 0,880 / 0,851 | 0,861 | 0,960 | 0,053 |
+| LDA2 + resp. | LDA EEG, LDA battement, encodeur resp., réglés | 0,889 / 0,909 / 0,909 | 0,902 | 0,981 | 0,039 |
+| 3 encodeurs | EEG, battement, resp., réglés | 0,904 / 0,880 / 0,875 | 0,886 | 0,954 | 0,058 |
+| 3 encodeurs | idem, poids égaux | 0,894 / 0,918 / 0,861 | 0,891 | 0,982 | 0,044 |
+| 5 membres | LDA EEG, LDA battement, 3 encodeurs, réglés | 0,942 / 0,918 / 0,947 | 0,936 | 0,979 | 0,033 |
+| **5 membres** | idem, **poids égaux** | **0,966 / 0,957 / 0,952** | **0,958** | 0,986 | **0,022** |
+
+IC à 95 % de la meilleure : [0,92-0,99] selon la graine, disjoint de celui de la
+référence [0,77-0,88]. Contrôles : identités permutées 0,019 (chance 0,024) ;
+démographie seule 0,713 ; prédiction de la cohorte 0,35-0,47 pour une classe
+majoritaire à 0,44 (aucun embedding ne la prédit mieux).
+
+**Lecture** :
+- Les trois encodeurs appris, seuls tous sous la LDA de leur signal, dépassent
+  la référence une fois fusionnés (0,89) : leurs erreurs sont peu corrélées.
+- LDA et encodeurs se complètent : 5 membres > LDA seules (0,90) et > encodeurs
+  seuls (0,89). Les deux familles regardent le même signal autrement (spectre
+  par fenêtre et projection linéaire contre attention entre électrodes et
+  contraste au niveau de la séance).
+- Les poids égaux valent ou battent les poids réglés : 33 sondes de validation
+  par pli ne suffisent pas à régler 5 poids. **Réserve** : la variante à poids
+  égaux a été désignée meilleure en regardant le test. Elle n'enregistrait pas
+  de score de validation ; c'est corrigé (`val_top1_equal`) pour que le choix
+  entre variantes se fasse dorénavant sur validation. Les 7 variantes étant
+  fixées d'avance, la LDA2 + resp. réglée (0,902) et la 5 membres réglée
+  (0,936) sont les chiffres sans aucune sélection sur le test.
+
+**Prochaine étape** : job GPU (reproduction de ces fusions sur H100), puis
+pré-entraînement « world model » de l'encodeur EEG sur l'EEG des vidéos
+(seulement disponible sur le GPU) ; fusion apprise de bout en bout à comparer à
+la fusion à poids égaux.
