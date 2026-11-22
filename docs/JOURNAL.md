@@ -790,3 +790,44 @@ Second correctif : l'identifiant complet d'un job est `<clé d'équipe>--<id>`.
 l'id complet ; d'où « no jobs yet » et « wrote nothing » au lieu des vrais
 résultats. Le workflow complète désormais l'id et liste tous les jobs de
 l'équipe. Retesté sur le stockage simulé (id court et id complet).
+
+## 2026-11-22 — Premier job GPU : bloqué à l'extraction, tué à 1 h
+
+**Constat** (log complet récupéré par le workflow « HABS results ») : le job
+`20261122T003121-0fcdc8` a démarré à 00:36 sur une H100 NVL (40 CPU,
+`cuda: true`), a extrait **une seule séance en une heure**, puis a été tué
+par la plateforme (`MaxWallClockTimeExceeded`, 1:00:57). Un job tué ne garde
+rien : `out/` est vide. 1,0 h GPU consommée pour rien.
+
+**Cause probable** : l'extraction lançait un pool de processus par *fork*
+depuis un parent qui venait de charger torch et d'initialiser CUDA (pour
+afficher le nom du GPU) ; chaque processus utilisait en plus tous les cœurs
+pour ses calculs (40 × 40 threads). Le Mac extrait les 590 séances en 18 min
+avec un seul processus : l'extraction n'était pas lente, elle était bloquée.
+
+**Correctifs** (`reid/platform.py`) :
+- chaque morceau d'extraction (cache features et cache brut, `workers`
+  morceaux chacun) est un processus `scripts/reid_extract.py` indépendant, sans
+  fork, avec un seul thread de calcul ; un log par morceau dans `out/logs/` ;
+- les groupes de modèles se partagent les CPU (`OMP_NUM_THREADS` = CPU /
+  groupes) ;
+- limite interne `deadline_min` (52 min dans `reid_job.yaml`) : à l'échéance,
+  ce qui tourne encore est arrêté, `job.json` est écrit quand même et les
+  fichiers de résultats des modèles finis sont conservés ; les morceaux
+  interrompus remontent ce qu'ils ont extrait.
+
+**Tests** :
+- 2 tests (`tests/reid/test_platform.py`) : lecture des compteurs, arrêt à
+  l'échéance d'un processus qui dort, codes de sortie. Le premier a trouvé un
+  bug du correctif lui-même (découpage de la ligne au mauvais `": "`) ;
+- job complet en local sur les vraies données (18 CPU, caches vides) :
+  limite de 1 min respectée (60,1 s, 358 séances extraites, rapport écrit) ;
+  sans limite, extraction des deux caches en 105 s (590 + 590, aucun échec),
+  puis deux groupes en parallèle : `fuse_ref_lda3_s0` 0,827 [0,774-0,880] et
+  `fuse_lda3_resp_s0` 0,851 [0,803-0,899], chance 0,024, identiques aux runs
+  précédents ; total 3 min 42 s ;
+- suite complète : 54 tests passent, ruff propre.
+
+**À surveiller au prochain job** : durée de l'entraînement des encodeurs sur
+H100 (≈ 40 min par graine sur le Mac). Si les 3 graines ne tiennent pas dans
+52 min, les modèles finis sont gardés et on répartit le reste sur un 2e job.

@@ -11,6 +11,7 @@ tasks: [rest]                    # rest, artefact, video
 modalities: [eeg, ecg, resp]     # feature cache (LDA members); raw crops always
 shard: 0/1                       # job: features only (i/n)
 workers: 0                       # extraction processes, 0 = every CPU
+deadline_min: 52                 # everything stops here (the platform kills at 60)
 eval_task: rest
 scenarios: [d1_to_d2]
 groups:                          # one process per group, one seed per group
