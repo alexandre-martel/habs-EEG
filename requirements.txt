@@ -1,11 +1,5 @@
-# Your dependencies. These are installed into the container your job runs in.
-# Pin versions, or a rebuild can change them under you.
-#
-# mne reads the BDF files; pandas and scipy are what the example uses. pyedflib
-# is what starting_notebooks/bdf_loader.py needs, if you copy it in here.
-#
-# Don't add habs-hack here: the platform runs your code itself, and the CLI is
-# installed separately by the workflow.
+# Dépendances installées dans le conteneur du job (versions figées).
+# Les 5 premières viennent du template HABS ; les 4 suivantes servent à Demuru 2020.
 mne==1.13.2
 pyedflib==0.1.42
 numpy==2.4.6
