@@ -1,0 +1,114 @@
+name: reid GPU
+
+# Manual only: submits main to the GPU like submit.yml, but runs one *part* of
+# reid_job.yaml (parts: all, s0, s1, s2...), so that work can be split across
+# jobs of under an hour without a commit on main per job. The part is written
+# to reid_job_part in a commit made on this runner only (never pushed):
+# `habs submit` sends `git archive HEAD`, so the job sees it.
+#
+# When the job ends, its results (job.json, runs/*.json, logs/) are attached to
+# this run as an artifact. The repository is public: the failure lists
+# (failures_*.csv) name participants and are left out. If the watch gives up
+# (queue + run over ~95 min), fetch them later with "HABS results".
+on:
+  workflow_dispatch:
+    inputs:
+      part:
+        description: "part of reid_job.yaml to run (all, s0, s1, s2, ...)"
+        required: true
+        default: "all"
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  # Same values as submit.yml.
+  HABS_KEY: "c7b8687f-966e-44a6-badd-52b4a30fb6a9"
+  HABS_TENANT_ID: 6fc0e479-449c-4700-b89c-7c4848058e30
+  HABS_STORAGE: sthabshackweu
+  HABS_CLIENT: "habs-hack[storage] @ git+https://github.com/HABS-BRAIN/habs-hack@main"
+
+jobs:
+  build:
+    name: build your image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      job: ${{ steps.submit.outputs.job }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: choose the part (runner-only commit)
+        env:
+          PART: ${{ inputs.part }}
+        run: |
+          case "$PART" in
+            *[!A-Za-z0-9_-]*|"") echo "::error::bad part name: $PART"; exit 1 ;;
+          esac
+          python3 - <<'EOF'
+          import os, re, sys
+          text = open("reid_job.yaml").read()
+          parts = re.search(r"^parts:\n((?:[ #].*\n|\n)*)", text, re.M)
+          names = re.findall(r"^  ([A-Za-z0-9_-]+):", parts.group(1), re.M) if parts else []
+          if os.environ["PART"] not in names:
+              sys.exit(f"::error::unknown part {os.environ['PART']!r}, known: {names}")
+          EOF
+          printf '%s\n' "$PART" > reid_job_part
+          git add -f reid_job_part
+          git -c user.name=reid-gpu -c user.email=reid-gpu@users.noreply.github.com \
+            commit -q -m "part $PART (runner only)"
+          git log --oneline -2
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ env.HABS_KEY }}
+          tenant-id: ${{ env.HABS_TENANT_ID }}
+          allow-no-subscriptions: true
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - run: pip install --quiet "$HABS_CLIENT"
+
+      - id: submit
+        run: habs submit --sha "${{ github.sha }}" --until built
+
+  run:
+    name: run on a GPU
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    steps:
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ env.HABS_KEY }}
+          tenant-id: ${{ env.HABS_TENANT_ID }}
+          allow-no-subscriptions: true
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - run: pip install --quiet "$HABS_CLIENT"
+
+      - run: habs watch "${{ needs.build.outputs.job }}" --out results_gpu --timeout 5700
+
+      - name: keep aggregate files only
+        if: always()
+        run: |
+          mkdir -p results_gpu
+          for f in $(find results_gpu -name 'failures_*.csv'); do
+            echo "$f: $(($(wc -l < "$f") - 1)) failed session(s), not uploaded"
+            rm "$f"
+          done
+          echo "${{ needs.build.outputs.job }}" > results_gpu/job_id.txt
+          find results_gpu -type f | sort
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reid-gpu-${{ inputs.part }}-${{ github.run_id }}
+          path: results_gpu
+          retention-days: 7

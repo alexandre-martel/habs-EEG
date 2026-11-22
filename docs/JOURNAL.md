@@ -831,3 +831,24 @@ avec un seul processus : l'extraction n'était pas lente, elle était bloquée.
 **À surveiller au prochain job** : durée de l'entraînement des encodeurs sur
 H100 (≈ 40 min par graine sur le Mac). Si les 3 graines ne tiennent pas dans
 52 min, les modèles finis sont gardés et on répartit le reste sur un 2e job.
+
+## 2026-11-22 — Découper le travail GPU en jobs de moins d'une heure
+
+Un job ne reçoit aucun paramètre : il exécute le commit soumis. Pour lancer des
+morceaux différents sans un commit sur main par job :
+- `reid_job.yaml` décrit des **parts** (`all` : les 3 graines en 6 processus ;
+  `s0`, `s1`, `s2` : une graine en 2 processus, fusions LDA d'un côté,
+  fusions à encodeurs de l'autre) ; `part: all` par défaut ;
+- `reid/platform.py` (`select_part`) exécute la part écrite dans
+  `reid_job_part` si ce fichier existe, sinon `part` ;
+- nouveau workflow `.github/workflows/reid_gpu.yml` (« reid GPU », hors reid/,
+  signalé ; `submit.yml` intact) : champ `part`, écrit `reid_job_part` dans un
+  commit fait sur la machine GitHub seulement (jamais poussé ; `habs submit`
+  envoie `git archive HEAD`), soumet, suit le job puis joint ses résultats en
+  artefact (sans les `failures_*.csv`). `reid_job_part` est ignoré par git.
+
+Tests : 2 de plus (choix de la part par fichier ou par défaut, part inconnue
+refusée ; tous les modèles cités dans les parts existent). L'étape du
+workflow a été exécutée telle quelle sur des clones jetables : part valide
+committée et présente dans l'archive, part inconnue et nom invalide refusés.
+56 tests passent.

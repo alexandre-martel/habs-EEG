@@ -13,3 +13,4 @@ cache/
 !results/**/*.parquet
 .pytest_cache/
 .ruff_cache/
+reid_job_part

@@ -14,7 +14,24 @@ workers: 0                       # extraction processes, 0 = every CPU
 deadline_min: 52                 # everything stops here (the platform kills at 60)
 eval_task: rest
 scenarios: [d1_to_d2]
-groups:                          # one process per group, one seed per group
-  - [fuse_ref_lda3_s0, fuse_lda3_resp_s0, fuse_lda2_resp_s0, fuse_enc3_s0, fuse_enc3_eq_s0, fuse_all5_s0, fuse_all5_eq_s0]
-  - [fuse_lda3_resp_s1, fuse_lda2_resp_s1, fuse_enc3_s1, fuse_enc3_eq_s1, fuse_all5_s1, fuse_all5_eq_s1]
-  - [fuse_lda3_resp_s2, fuse_lda2_resp_s2, fuse_enc3_s2, fuse_enc3_eq_s2, fuse_all5_s2, fuse_all5_eq_s2]
+# Parts: one job runs one part (at most ~52 min). The part is `part` below, or
+# the one chosen when launching .github/workflows/reid_gpu.yml. Each part is a
+# list of groups, one process per group, run at once on the same GPU.
+part: all
+parts:
+  all:                           # the 3 seeds at once (6 processes)
+    - [fuse_ref_lda3_s0, fuse_lda3_resp_s0, fuse_lda2_resp_s0]
+    - [fuse_enc3_s0, fuse_enc3_eq_s0, fuse_all5_s0, fuse_all5_eq_s0]
+    - [fuse_lda3_resp_s1, fuse_lda2_resp_s1]
+    - [fuse_enc3_s1, fuse_enc3_eq_s1, fuse_all5_s1, fuse_all5_eq_s1]
+    - [fuse_lda3_resp_s2, fuse_lda2_resp_s2]
+    - [fuse_enc3_s2, fuse_enc3_eq_s2, fuse_all5_s2, fuse_all5_eq_s2]
+  s0:
+    - [fuse_ref_lda3_s0, fuse_lda3_resp_s0, fuse_lda2_resp_s0]
+    - [fuse_enc3_s0, fuse_enc3_eq_s0, fuse_all5_s0, fuse_all5_eq_s0]
+  s1:
+    - [fuse_lda3_resp_s1, fuse_lda2_resp_s1]
+    - [fuse_enc3_s1, fuse_enc3_eq_s1, fuse_all5_s1, fuse_all5_eq_s1]
+  s2:
+    - [fuse_lda3_resp_s2, fuse_lda2_resp_s2]
+    - [fuse_enc3_s2, fuse_enc3_eq_s2, fuse_all5_s2, fuse_all5_eq_s2]

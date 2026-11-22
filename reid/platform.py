@@ -44,6 +44,9 @@ import yaml
 
 REPO = Path(__file__).resolve().parent.parent
 JOB = Path(os.environ.get("REID_JOB") or REPO / "reid_job.yaml")
+#: written (and committed on the runner only) by .github/workflows/reid_gpu.yml
+#: to pick one of the ``parts`` of reid_job.yaml without a commit on main
+PART = REPO / "reid_job_part"
 SCRIPTS = REPO / "scripts"
 #: one compute thread per process unless said otherwise: 40 extraction
 #: processes x 40 BLAS/OpenMP threads each would be 1600 threads on 40 CPUs
@@ -190,10 +193,26 @@ def _hardware() -> dict:
     return info
 
 
+def select_part(job: dict, part_file: Path = PART) -> dict:
+    """``groups`` of the chosen part: the one named in ``part_file`` when it
+    exists, else ``part``; a job without ``parts`` keeps its ``groups``."""
+    if "parts" not in job:
+        return job
+    name = part_file.read_text().strip() if part_file.is_file() else ""
+    name = name or str(job.get("part", ""))
+    if name not in job["parts"]:
+        raise SystemExit(f"unknown part {name!r}; known: {sorted(job['parts'])}")
+    return {k: v for k, v in job.items() if k != "parts"} | {
+        "part": name,
+        "groups": job["parts"][name],
+    }
+
+
 def process(data_dir: Path, out_dir: Path) -> None:
     data_dir, out_dir = Path(data_dir), Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    job = yaml.safe_load(JOB.read_text())
+    job = select_part(yaml.safe_load(JOB.read_text()))
+    print(f"part: {job.get('part', '-')}, groups: {job.get('groups')}", flush=True)
     start = time.time()
     deadline = start + 60 * float(job.get("deadline_min", 52))
     report = {"job": job, "hardware": _hardware(), "timings_s": {}}
