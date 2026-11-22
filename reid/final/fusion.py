@@ -101,21 +101,21 @@ class ScoreFusion:
             return model.val_scores_
         return self._fit(key, inner).score(self._view(key, gal), self._view(key, prb))
 
-    def _choose(self, Z: list, truth: np.ndarray) -> tuple[np.ndarray, dict]:
+    @staticmethod
+    def _metrics(w, Z: list, truth: np.ndarray) -> tuple[float, float]:
+        greater, ties = rank_counts(sum(wi * z for wi, z in zip(w, Z)), truth)
+        return topk(greater, ties, 1).mean(), reciprocal_rank(greater, ties).mean()
+
+    def _choose(self, Z: list, truth: np.ndarray) -> np.ndarray:
         m = len(Z)
         if self.weights == "equal" or m == 1:
-            return np.full(m, 1 / m), {}
+            return np.full(m, 1 / m)
         best, best_key = None, None
         for w in simplex(m, self.step):
-            greater, ties = rank_counts(sum(wi * z for wi, z in zip(w, Z)), truth)
-            key = (
-                topk(greater, ties, 1).mean(),
-                reciprocal_rank(greater, ties).mean(),
-                -np.abs(w - 1 / m).sum(),
-            )
+            key = (*self._metrics(w, Z, truth), -np.abs(w - 1 / m).sum())
             if best_key is None or key > best_key:
                 best, best_key = w, key
-        return best, {"val_top1": float(best_key[0]), "val_mrr": float(best_key[1])}
+        return best
 
     def fit(self, train: SessionSet) -> None:
         inner, gal, prb = inner_split(train, self.seed)
@@ -126,7 +126,17 @@ class ScoreFusion:
         for k, z in zip(self.members, Z):
             greater, ties = rank_counts(z, truth)
             single[k] = round(float(topk(greater, ties, 1).mean()), 4)
-        self.w_, info = self._choose(Z, truth)
+        self.w_ = self._choose(Z, truth)
+        # validation metrics of the chosen and of equal weights, so that the
+        # choice between fusion variants can itself be made on validation
+        top1, mrr = self._metrics(self.w_, Z, truth)
+        top1_eq, mrr_eq = self._metrics(np.full(len(Z), 1 / len(Z)), Z, truth)
+        info = {
+            "val_top1": float(top1),
+            "val_mrr": float(mrr),
+            "val_top1_equal": float(top1_eq),
+            "val_mrr_equal": float(mrr_eq),
+        }
         weights = dict(zip(self.members, np.round(self.w_, 3).tolist()))
         print(f"  {self.name}: val top-1 {single}, weights {weights}", flush=True)
         self.config |= {"weights": weights, "val_member_top1": single, **info}
