@@ -776,3 +776,11 @@ retirées de l'artefact ; seul leur nombre de lignes est affiché.
 Testé en local : client `habs` sur un stockage simulé (`HABS_STORE_DIR`),
 étapes du workflow exécutées telles quelles, avec un id de job et sans id
 (dernier job). Le fichier d'échecs est bien écarté, le reste est conservé.
+
+Correctif : sur le job `20261122T003121-0fcdc8`, `habs get` n'a rien
+téléchargé (le job n'avait rien écrit dans `out/`). Le dossier n'était donc pas
+créé, l'écriture de `console.log` échouait sans bruit et l'artefact était vide.
+Le workflow crée désormais le dossier d'abord, garde toujours `status.txt`,
+`ls.txt` et `console.log`, affiche les 60 dernières lignes de la sortie du job
+dans le run, et publie l'artefact même si le téléchargement échoue. Retesté sur
+un job terminé, un job sans fichiers et un id inconnu.
