@@ -784,3 +784,9 @@ Le workflow crée désormais le dossier d'abord, garde toujours `status.txt`,
 `ls.txt` et `console.log`, affiche les 60 dernières lignes de la sortie du job
 dans le run, et publie l'artefact même si le téléchargement échoue. Retesté sur
 un job terminé, un job sans fichiers et un id inconnu.
+
+Second correctif : l'identifiant complet d'un job est `<clé d'équipe>--<id>`.
+`habs watch` accepte l'id court, mais `status`, `ls`, `get` et `logs` exigent
+l'id complet ; d'où « no jobs yet » et « wrote nothing » au lieu des vrais
+résultats. Le workflow complète désormais l'id et liste tous les jobs de
+l'équipe. Retesté sur le stockage simulé (id court et id complet).

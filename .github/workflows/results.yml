@@ -46,15 +46,25 @@ jobs:
 
       - run: pip install --quiet "$HABS_CLIENT"
 
+      # A job's full id is "<team key>--<id>"; `habs watch` accepts the short
+      # id, but status/ls/get/logs need the full one.
+      - name: full job id
+        env:
+          JOB: ${{ inputs.job }}
+        run: |
+          case "$JOB" in
+            ""|*--*) full="$JOB" ;;
+            *) full="${HABS_KEY}--${JOB}" ;;
+          esac
+          echo "JOB=$full" >> "$GITHUB_ENV"
+
       # The job's state and console output are kept even when it wrote no
       # files (still running, stopped, or out_dir not uploaded): that is
       # exactly when they are needed.
       - name: status and console output
-        env:
-          JOB: ${{ inputs.job }}
         run: |
           mkdir -p results_gpu
-          habs status ${JOB:+"$JOB"} 2>&1 | tee results_gpu/status.txt
+          habs status 2>&1 | tee results_gpu/status.txt
           habs ls ${JOB:+"$JOB"} 2>&1 | tee results_gpu/ls.txt
           habs logs ${JOB:+"$JOB"} > results_gpu/console.log 2>&1 \
             || echo "habs logs failed, see results_gpu/console.log"
@@ -62,8 +72,6 @@ jobs:
           tail -n 60 results_gpu/console.log
 
       - name: download
-        env:
-          JOB: ${{ inputs.job }}
         run: |
           habs get ${JOB:+"$JOB"} --out results_gpu
           for f in $(find results_gpu -name 'failures_*.csv'); do
