@@ -71,6 +71,19 @@ MODELS |= {
 }
 
 
+# -- joint model: 3 encoders + fusion head trained together (reid.final.joint) -
+def _joint(k: int, **kw):
+    def make():
+        from reid.final.joint import JointModel
+
+        return JointModel(seed=SEED + k, split_seed=SEED, **kw)
+
+    return make
+
+
+MODELS |= {f"j_all3_s{k}": _joint(k) for k in range(3)}
+
+
 # -- score fusion (reid.final.fusion) ------------------------------------------
 #: LDA members read the feature cache, encoders the raw cache. Encoders of a
 #: fusion share the LDA's inner split (split_seed=SEED) so that their
@@ -96,6 +109,7 @@ def _members(k: int) -> dict:
         ),
         "enc_ecg_beat": (_factory("ecg_beat", SEED + k, tag="_refit", **split), "raw"),
         "enc_resp": (_factory("resp", SEED + k, tag="_refit", **split), "raw"),
+        "joint3": (_joint(k), "raw"),
     }
 
 
@@ -114,6 +128,9 @@ FUSIONS = {
         ("lda_eeg", "lda_ecg_beat", "enc_eeg", "enc_ecg_beat", "enc_resp"),
         "equal",
     ),
+    # the joint model in place of the three separately trained encoders
+    "fuse_lda2_joint": (("lda_eeg", "lda_ecg_beat", "joint3"), "tuned"),
+    "fuse_lda2_joint_eq": (("lda_eeg", "lda_ecg_beat", "joint3"), "equal"),
 }
 
 
@@ -125,7 +142,7 @@ def _fusion(name: str, k: int):
 
         members = _members(k)
         tagged = {
-            f"{key}_s{k}" if key.startswith("enc") else key: members[key]
+            f"{key}_s{k}" if key.startswith(("enc", "joint")) else key: members[key]
             for key in keys
         }
         return ScoreFusion(f"{name}_s{k}", tagged, weights)
