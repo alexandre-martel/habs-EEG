@@ -1029,3 +1029,24 @@ crête-à-crête sur des fenêtres de 2 s tous les 0,25 s, sur 410 séances de
   `memo: True`) ou attendent le verrou.
 - Part `pt_long` : `mae` 20 000 pas (au lieu de 3 000), ≤ 21 min par pli, 5
   plis en parallèle, affiné à lr 1e-3 et 3e-4 (même pré-entraînement).
+
+## 2026-11-23 — Pré-entraînement vidéo, criblage 2b : `jepa` et `session` à lr 3e-4
+
+**Job** `20261123T175444-b39f24` (part `pt_screen2b`, 2 processus, encore
+lancé avant la correction de la préparation : `jepa` arrêté à 52 min après 4
+plis). Validation interne (~33 personnes par pli, chance ≈ 0,03) :
+
+| encodeur EEG, affiné à lr 3e-4 | plis 1-5 | moyenne |
+|---|---|---|
+| sans pré-entraînement | 0,727 0,812 0,879 0,848 0,879 | 0,829 (plis 1-4 : 0,817) |
+| `mae` (criblage 2a) | 0,758 0,844 0,848 0,909 – | plis 1-4 : **0,840** |
+| `session` | 0,697 0,844 0,727 0,848 0,879 | 0,799 (test 0,683 [0,620 ; 0,740]) |
+| `jepa` | 0,667 0,750 0,818 0,879 – | plis 1-4 : 0,778 |
+
+Au pas 0 (avant affinage), `session` sépare déjà mieux les personnes que
+l'initialisation aléatoire (0,64 contre 0,58 en moyenne), mais après
+affinage il finit sous le témoin : l'invariance apprise sur la vidéo (même
+séance = même personne, sans contrainte entre jours) ne se transfère pas au
+repos jour 1 → jour 2. `jepa` reste sous le témoin à lr 3e-4 comme à 1e-3.
+Seul `mae` reste candidat ; `pt_long` (20 000 pas) dira si un
+pré-entraînement plus long l'aide.
