@@ -17,3 +17,7 @@ reid_job_part
 
 # macOS
 .DS_Store
+
+# Per-participant ECG outputs (identifying derivatives, public repo)
+results/ecg_rest_full/
+results/ecg_tanaskovic/
