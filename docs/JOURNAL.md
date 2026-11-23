@@ -1099,3 +1099,31 @@ au-dessus du témoin en validation, +0,006, bien dans le bruit.
 cet encodeur pré-entraîné (membre `enc_eeg_pt`, fusions `fuse_all5_pt` et
 `_pt_eq`), 3 graines, avec `fuse_all5` relancé dans le même job pour avoir sa
 validation (part `pt_fuse`). Critère : validation interne de la fusion.
+
+## 2026-11-23 — Fusion avec l'encodeur EEG pré-entraîné : aucun gain, étape 4 close (négatif)
+
+**Job** `20261123T222317-55b902` (part `pt_fuse`, 39 min, 11 processus,
+codes 0). `fuse_all5` et `fuse_all5_pt` (encodeur EEG pré-entraîné `mae`
+3 000 pas sur l'EEG vidéo des personnes d'entraînement interne), 3 graines,
+même job. Moyennes sur 3 graines ; validation interne = moyenne des 5 plis
+(~33 personnes par pli) ; test : top-1 poolé, IC 95 % par graine en
+annexe des JSON, chance 0,024.
+
+| fusion | validation, poids égaux | validation, poids réglés* | test, poids égaux | test, poids réglés |
+|---|---|---|---|---|
+| `fuse_all5` (EEG sans pré-entraînement) | **0,941** | 0,971 | **0,950** (0,952 / 0,947 / 0,952) | 0,937 (0,952 / 0,913 / 0,947) |
+| `fuse_all5_pt` (EEG pré-entraîné) | 0,939 | 0,972 | 0,949 (0,957 / 0,957 / 0,933) | 0,934 (0,938 / 0,942 / 0,923) |
+
+\* biaisée vers le haut : les poids sont choisis sur cette même validation.
+
+Écarts de 0,001-0,003, dans le bruit, dans les deux sens. Le
+pré-entraînement de l'encodeur EEG sur ~410 séances vidéo de 14 min
+n'améliore ni l'encodeur seul de façon nette (+0,006 en validation) ni la
+fusion. `fuse_all5_s1` (poids réglés) donne 0,913 ici contre 0,942 au job du
+23/11 : l'entraînement GPU n'est pas déterministe d'un job à l'autre, ce qui
+rappelle que ±0,03 entre deux runs isolés n'est pas un signal.
+
+**Bilan des étapes 4 et 5** : ni le pré-entraînement « world model » sur la
+vidéo, ni la fusion apprise de bout en bout ne battent le modèle final
+actuel, `fuse_all5_eq` (2 LDA + 3 encodeurs entraînés séparément, poids
+égaux) : 0,950 en test sur 3 graines (chance 0,024). Jobs GPU mis en pause.

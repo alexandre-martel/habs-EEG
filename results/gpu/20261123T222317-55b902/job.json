@@ -1,0 +1,125 @@
+{
+ "job": {
+  "job": "final",
+  "tasks": [
+   "rest"
+  ],
+  "modalities": [
+   "eeg",
+   "ecg",
+   "resp"
+  ],
+  "shard": "0/1",
+  "workers": 0,
+  "deadline_min": 52,
+  "eval_task": "rest",
+  "scenarios": [
+   "d1_to_d2"
+  ],
+  "part": "pt_fuse",
+  "caches": [
+   "features",
+   "raw",
+   "video"
+  ],
+  "groups": [
+   [
+    "pretrain",
+    "f_eeg_pt_mae_s0",
+    0
+   ],
+   [
+    "pretrain",
+    "f_eeg_pt_mae_s0",
+    1
+   ],
+   [
+    "pretrain",
+    "f_eeg_pt_mae_s0",
+    2
+   ],
+   [
+    "pretrain",
+    "f_eeg_pt_mae_s0",
+    3
+   ],
+   [
+    "pretrain",
+    "f_eeg_pt_mae_s0",
+    4
+   ],
+   [
+    "fuse_all5_s0",
+    "fuse_all5_eq_s0"
+   ],
+   [
+    "fuse_all5_pt_s0",
+    "fuse_all5_pt_eq_s0"
+   ],
+   [
+    "fuse_all5_s1",
+    "fuse_all5_eq_s1"
+   ],
+   [
+    "fuse_all5_pt_s1",
+    "fuse_all5_pt_eq_s1"
+   ],
+   [
+    "fuse_all5_s2",
+    "fuse_all5_eq_s2"
+   ],
+   [
+    "fuse_all5_pt_s2",
+    "fuse_all5_pt_eq_s2"
+   ]
+  ]
+ },
+ "hardware": {
+  "cpus": 40,
+  "python": "3.12.3",
+  "ram_gb": 337.9,
+  "tmp_free_gb": 27.0,
+  "torch": "2.14.1+cu126",
+  "cuda": true,
+  "gpu": "NVIDIA H100 NVL"
+ },
+ "timings_s": {
+  "extraction": 243.4,
+  "total": 2342.6
+ },
+ "extraction": {
+  "rest": {
+   "features": {
+    "done": 590,
+    "skipped": 0,
+    "failed": 0
+   },
+   "raw": {
+    "done": 590,
+    "skipped": 0,
+    "failed": 0
+   }
+  },
+  "video": {
+   "video": {
+    "done": 596,
+    "skipped": 0,
+    "failed": 0
+   }
+  }
+ },
+ "extraction_problems": [],
+ "exit_codes": [
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0
+ ]
+}
