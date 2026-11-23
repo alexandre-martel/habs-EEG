@@ -14,3 +14,6 @@ cache/
 .pytest_cache/
 .ruff_cache/
 reid_job_part
+
+# macOS
+.DS_Store
