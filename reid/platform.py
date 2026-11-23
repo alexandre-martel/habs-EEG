@@ -256,6 +256,43 @@ def _ecg_rest(data_dir: Path, out_dir: Path, job: dict, deadline: float) -> dict
     return {"files": len(bdfs), "missing": missing, "status": status}
 
 
+def _ecg_tanaskovic(data_dir: Path, out_dir: Path, job: dict, deadline: float) -> dict:
+    """``job: ecg_tanaskovic`` -- scripts/ecg_tanaskovic_extract.py on every
+    resting-state BDF of ``days``. Output names participants: it goes to
+    out_dir/private/ecg_tanaskovic (left out of the GitHub artifact by the
+    workflows), with the script's output; the job log and job.json only get
+    aggregate counts."""
+    dest = out_dir / "private" / "ecg_tanaskovic"
+    dest.mkdir(parents=True, exist_ok=True)
+    cmd = [sys.executable, str(SCRIPTS / "ecg_tanaskovic_extract.py"),
+           "--data", str(data_dir), "--out", str(dest),
+           "--days", *map(str, job.get("days", [1, 2]))]
+    with (dest / "log.txt").open("w") as log:
+        try:
+            code = subprocess.run(cmd, cwd=REPO, stdout=log, stderr=subprocess.STDOUT,
+                                  timeout=_remaining(deadline)).returncode
+        except subprocess.TimeoutExpired:
+            code = "timeout"
+    summary = {"status": "ok" if code == 0 else f"exit {code}"}
+    try:
+        import pandas as pd
+
+        f = pd.read_csv(dest / "features.csv")
+        summary |= {
+            "sessions": int(f.groupby(["participant_id", "day"]).ngroups),
+            "participants": int(f.participant_id.nunique()),
+            "participants_both_days": int((f.groupby("participant_id").day.nunique() == 2).sum()),
+            "templates": len(f),
+            "templates_with_fiducials": int(f.fiducials_ok.sum()),
+            "t_polarity_negative_share": round(float((f.T_polarity == -1).mean()), 3),
+            "failed_files": len(pd.read_csv(dest / "failures.csv")),
+        }
+    except Exception as err:  # noqa: BLE001 - the summary must not hide the status
+        summary["summary_error"] = repr(err)
+    print(f"ecg_tanaskovic: {summary}", flush=True)
+    return summary
+
+
 def process(data_dir: Path, out_dir: Path) -> None:
     data_dir, out_dir = Path(data_dir), Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -266,8 +303,9 @@ def process(data_dir: Path, out_dir: Path) -> None:
     report = {"job": job, "hardware": _hardware(), "timings_s": {}}
     print(json.dumps(report["hardware"]), flush=True)
 
-    if job.get("job") == "ecg_rest":
-        report["ecg_rest"] = _ecg_rest(data_dir, out_dir, job, deadline)
+    if job.get("job") in ("ecg_rest", "ecg_tanaskovic"):
+        run = _ecg_rest if job["job"] == "ecg_rest" else _ecg_tanaskovic
+        report[job["job"]] = run(data_dir, out_dir, job, deadline)
         report["timings_s"]["total"] = round(time.time() - start, 1)
         (out_dir / "job.json").write_text(json.dumps(report, indent=1, default=str))
         return
