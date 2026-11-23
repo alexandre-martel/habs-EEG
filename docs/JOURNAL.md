@@ -1074,3 +1074,28 @@ la fusion, avec ~33 personnes, sur-ajuste davantage.
 **Conclusion de l'étape 5** : la fusion apprise de bout en bout n'apporte rien
 ici (~250 personnes d'entraînement par pli) ; le modèle final reste la fusion
 de scores de membres entraînés séparément (`fuse_all5`).
+
+## 2026-11-23 — Pré-entraînement `mae` long (20 000 pas) : moins bon que court
+
+**Job** `20261123T193123-445824` (part `pt_long`, 35 min, codes 0). Les 5
+pré-entraînements en parallèle en début de job (611 s chacun, tous retrouvés
+ensuite dans le mémo : `pretrain_memo: True`), puis l'affinage à deux taux.
+Validation interne (~33 personnes par pli, chance ≈ 0,03) :
+
+| encodeur EEG | validation, plis 1-5 | moyenne | pas 0 | test top-1 |
+|---|---|---|---|---|
+| sans pré-entraînement, lr 1e-3 | 0,727 0,812 0,818 0,909 0,879 | 0,829 | 0,579 | 0,721 |
+| `mae` 3 000 pas, lr 1e-3 (criblage 1) | 0,758 0,844 0,848 0,879 0,848 | **0,835** | 0,683 | 0,731 |
+| `mae` 20 000 pas, lr 1e-3 | 0,697 0,781 0,848 0,848 0,818 | 0,798 | 0,652 | 0,736 [0,678 ; 0,793] |
+| `mae` 20 000 pas, lr 3e-4 | 0,727 0,781 0,848 0,879 0,879 | 0,823 | 0,652 | 0,688 [0,630 ; 0,750] |
+
+Pré-entraîner plus longtemps fait baisser la séparation des personnes au
+pas 0 (0,652 contre 0,683) et la validation après affinage : la
+reconstruction d'électrodes masquées apprend au-delà de ce qui sert
+l'identité. Bilan des criblages : seul `mae` 3 000 pas, lr 1e-3 est (à peine)
+au-dessus du témoin en validation, +0,006, bien dans le bruit.
+
+**Dernier test de l'étape 4** : remplacer l'encodeur EEG de `fuse_all5` par
+cet encodeur pré-entraîné (membre `enc_eeg_pt`, fusions `fuse_all5_pt` et
+`_pt_eq`), 3 graines, avec `fuse_all5` relancé dans le même job pour avoir sa
+validation (part `pt_fuse`). Critère : validation interne de la fusion.
