@@ -128,7 +128,9 @@ FUSIONS = {
         ("lda_eeg", "lda_ecg_beat", "enc_eeg", "enc_ecg_beat", "enc_resp"),
         "equal",
     ),
-    # the joint model in place of the three separately trained encoders
+    # the joint model in place of the three separately trained encoders (alone:
+    # fuse_joint, which shares the fitted joint model with the two below)
+    "fuse_joint": (("joint3",), "tuned"),
     "fuse_lda2_joint": (("lda_eeg", "lda_ecg_beat", "joint3"), "tuned"),
     "fuse_lda2_joint_eq": (("lda_eeg", "lda_ecg_beat", "joint3"), "equal"),
 }

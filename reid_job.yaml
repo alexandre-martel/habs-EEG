@@ -43,3 +43,8 @@ parts:
       - [f_eeg_pt_jepa_s0]
       - [f_eeg_pt_session_s0]
       - [f_eeg_pt_xday_s0]
+  joint:                         # joint model alone and fused with the 2 LDA
+    groups:
+      - [fuse_joint_s0, fuse_lda2_joint_s0, fuse_lda2_joint_eq_s0]
+      - [fuse_joint_s1, fuse_lda2_joint_s1, fuse_lda2_joint_eq_s1]
+      - [fuse_joint_s2, fuse_lda2_joint_s2, fuse_lda2_joint_eq_s2]
