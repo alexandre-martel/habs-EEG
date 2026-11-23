@@ -222,6 +222,40 @@ def select_part(job: dict, part_file: Path = PART) -> dict:
     return {k: v for k, v in job.items() if k != "parts"} | part | {"part": name}
 
 
+def _ecg_rest(data_dir: Path, out_dir: Path, job: dict, deadline: float) -> dict:
+    """``job: ecg_rest`` -- scripts/ecg_rest_full.py on the resting-state BDFs
+    of ``participants`` x ``days`` (CURATED). Per-participant values identify
+    people and the repository is public: they go to out_dir/ecg_rest only
+    (private team storage; the workflows leave that folder out of the GitHub
+    artifact), the script's output goes to a file there, and the job log only
+    gets counts."""
+    dest = out_dir / "ecg_rest"
+    dest.mkdir(parents=True, exist_ok=True)
+    bdfs, missing = [], 0
+    for pid in job.get("participants", []):
+        for day in job.get("days", [1, 2]):
+            bdf = data_dir / "CURATED" / pid / f"{pid}_day-{day}_task-resting-state_multimodal.bdf"
+            if bdf.is_file():
+                bdfs.append(bdf)
+            else:
+                missing += 1
+    print(f"ecg_rest: {len(bdfs)} resting-state file(s) found, {missing} missing", flush=True)
+    if not bdfs:
+        return {"files": 0, "missing": missing, "status": "nothing to do"}
+    cmd = [sys.executable, str(SCRIPTS / "ecg_rest_full.py"), *map(str, bdfs), "--out", str(dest)]
+    with (dest / "log.txt").open("w") as log:
+        try:
+            code = subprocess.run(
+                cmd, cwd=REPO, stdout=log, stderr=subprocess.STDOUT,
+                timeout=_remaining(deadline),
+            ).returncode
+        except subprocess.TimeoutExpired:
+            code = "timeout"
+    status = "ok" if code == 0 else f"exit {code}"
+    print(f"ecg_rest: {status}, outputs in out_dir/ecg_rest (not in the job log)", flush=True)
+    return {"files": len(bdfs), "missing": missing, "status": status}
+
+
 def process(data_dir: Path, out_dir: Path) -> None:
     data_dir, out_dir = Path(data_dir), Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -231,6 +265,12 @@ def process(data_dir: Path, out_dir: Path) -> None:
     deadline = start + 60 * float(job.get("deadline_min", 52))
     report = {"job": job, "hardware": _hardware(), "timings_s": {}}
     print(json.dumps(report["hardware"]), flush=True)
+
+    if job.get("job") == "ecg_rest":
+        report["ecg_rest"] = _ecg_rest(data_dir, out_dir, job, deadline)
+        report["timings_s"]["total"] = round(time.time() - start, 1)
+        (out_dir / "job.json").write_text(json.dumps(report, indent=1, default=str))
+        return
 
     if job.get("job", "features") == "features":
         from reid.features import run_extraction

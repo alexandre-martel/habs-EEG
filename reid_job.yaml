@@ -64,3 +64,7 @@ parts:
       - [fuse_enc3_s0, fuse_enc3_eq_s0]
       - [j_all3_bw1_s0]
       - [j_all3_bw4_s0]
+  ecg_p043:                      # whole-rest ECG (scripts/ecg_rest_full.py), no model;
+    job: ecg_rest                # outputs in out_dir/ecg_rest, kept out of the
+    participants: [P043]         # GitHub artifact (public repo)
+    days: [1, 2]

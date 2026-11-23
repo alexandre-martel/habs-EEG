@@ -109,6 +109,11 @@ jobs:
             echo "$f: $(($(wc -l < "$f") - 1)) failed session(s), not uploaded"
             rm "$f"
           done
+          # per-participant ECG (job: ecg_rest): private storage only
+          for d in $(find results_gpu -type d -name ecg_rest); do
+            echo "$d: $(find "$d" -type f | wc -l) per-participant file(s), not uploaded"
+            rm -r "$d"
+          done
           echo "${{ needs.build.outputs.job }}" > results_gpu/job_id.txt
           find results_gpu -type f | sort
 
