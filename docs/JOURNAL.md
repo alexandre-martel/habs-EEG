@@ -1050,3 +1050,27 @@ séance = même personne, sans contrainte entre jours) ne se transfère pas au
 repos jour 1 → jour 2. `jepa` reste sous le témoin à lr 3e-4 comme à 1e-3.
 Seul `mae` reste candidat ; `pt_long` (20 000 pas) dira si un
 pré-entraînement plus long l'aide.
+
+## 2026-11-23 — Modèle joint, variantes `joint2` : toujours sous la fusion des encodeurs séparés
+
+**Job** `20261123T182227-b10659` (part `joint2`, 3 processus, 26 min, codes
+0, graine 0). Validation interne (critère de choix, ~33 personnes par pli,
+chance ≈ 0,03) et test (IC 95 %, chance 0,024) :
+
+| modèle | validation, plis 1-5 | moyenne | test top-1 |
+|---|---|---|---|
+| joint, branches × 0,5 (job `joint`, 3 graines) | – | 0,892 | 0,808 |
+| joint `_bw1` (branches × 1, 50 % masquées) | 0,758 0,906 0,909 0,879 0,909 | 0,872 | 0,774 [0,712 ; 0,827] |
+| joint `_bw4` (branches × 4) | 0,848 0,906 0,939 0,879 0,939 | 0,902 | 0,846 [0,793 ; 0,894] |
+| 3 encodeurs séparés, fusion à poids égaux | 0,848 0,906 0,970 0,909 0,939 | **0,914** | **0,909** [0,865 ; 0,942] |
+| 3 encodeurs séparés, poids réglés | 0,879 0,938 0,970 0,970 0,970 | 0,945 (biaisé : poids choisis sur cette validation) | 0,899 [0,856 ; 0,938] |
+
+Plus les pertes par branche pèsent, mieux le joint fait : il se rapproche des
+encodeurs séparés sans les rattraper, ni en validation ni au test. La
+validation du joint est plus optimiste que celle des encodeurs séparés
+(écart validation-test 0,06 contre 0,005) : un seul arrêt précoce choisi sur
+la fusion, avec ~33 personnes, sur-ajuste davantage.
+
+**Conclusion de l'étape 5** : la fusion apprise de bout en bout n'apporte rien
+ici (~250 personnes d'entraînement par pli) ; le modèle final reste la fusion
+de scores de membres entraînés séparément (`fuse_all5`).

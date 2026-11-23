@@ -1,0 +1,66 @@
+{
+ "job": {
+  "job": "final",
+  "tasks": [
+   "rest"
+  ],
+  "modalities": [
+   "eeg",
+   "ecg",
+   "resp"
+  ],
+  "shard": "0/1",
+  "workers": 0,
+  "deadline_min": 52,
+  "eval_task": "rest",
+  "scenarios": [
+   "d1_to_d2"
+  ],
+  "part": "joint2",
+  "groups": [
+   [
+    "fuse_enc3_s0",
+    "fuse_enc3_eq_s0"
+   ],
+   [
+    "j_all3_bw1_s0"
+   ],
+   [
+    "j_all3_bw4_s0"
+   ]
+  ]
+ },
+ "hardware": {
+  "cpus": 40,
+  "python": "3.12.3",
+  "ram_gb": 337.9,
+  "tmp_free_gb": 28.3,
+  "torch": "2.14.1+cu126",
+  "cuda": true,
+  "gpu": "NVIDIA H100 NVL"
+ },
+ "timings_s": {
+  "extraction": 91.7,
+  "total": 1551.5
+ },
+ "extraction": {
+  "rest": {
+   "features": {
+    "done": 590,
+    "skipped": 0,
+    "failed": 0
+   },
+   "raw": {
+    "done": 590,
+    "skipped": 0,
+    "failed": 0
+   }
+  }
+ },
+ "extraction_problems": [],
+ "exit_codes": [
+  0,
+  0,
+  0
+ ]
+}
