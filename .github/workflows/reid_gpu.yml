@@ -10,6 +10,12 @@ name: reid GPU
 # this run as an artifact. The repository is public: the failure lists
 # (failures_*.csv) name participants and are left out. If the watch gives up
 # (queue + run over ~95 min), fetch them later with "HABS results".
+#
+# First step of every job: the resting-state data (tasks: [rest] in
+# reid_job.yaml) is loaded before any model runs. Nothing is downloaded from
+# Hugging Face: the job reads the BDF files from /data, where the whole dataset
+# is mounted read-only, and extracts the feature and raw-crop caches into local
+# scratch (reid/platform.py, _extract). This takes part of the one-hour budget.
 on:
   workflow_dispatch:
     inputs:
@@ -102,6 +108,11 @@ jobs:
           for f in $(find results_gpu -name 'failures_*.csv'); do
             echo "$f: $(($(wc -l < "$f") - 1)) failed session(s), not uploaded"
             rm "$f"
+          done
+          # per-participant outputs (ecg_rest, private/): private storage only
+          for d in $(find results_gpu -type d \( -name ecg_rest -o -name private \) -prune); do
+            echo "$d: $(find "$d" -type f | wc -l) per-participant file(s), not uploaded"
+            rm -r "$d"
           done
           echo "${{ needs.build.outputs.job }}" > results_gpu/job_id.txt
           find results_gpu -type f | sort

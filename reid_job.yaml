@@ -74,3 +74,10 @@ parts:
       - [pretrain, f_eeg_pt_maelong_s0, 4]
       - [f_eeg_pt_maelong_lr3_s0]
       - [f_eeg_pt_maelong_s0]
+  ecg_p043:                      # whole-rest ECG (scripts/ecg_rest_full.py), no model;
+    job: ecg_rest                # outputs in out_dir/ecg_rest, kept out of the
+    participants: [P043]         # GitHub artifact (public repo)
+    days: [1, 2]
+  ecg_tk_rest:                   # Tanasković et al. 2025 ECG features, every rest
+    job: ecg_tanaskovic          # recording of days 1-2; per-participant output in
+    days: [1, 2]                 # out_dir/private (kept out of the GitHub artifact)

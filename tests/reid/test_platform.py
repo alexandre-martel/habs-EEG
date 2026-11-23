@@ -74,7 +74,8 @@ def test_every_model_of_the_job_file_is_registered():
 
     job = yaml.safe_load(JOB.read_text())
     assert job["part"] in job["parts"]
-    parts = [p["groups"] if isinstance(p, dict) else p for p in job["parts"].values()]
+    # parts of another job (ecg_rest, ecg_tanaskovic) run no model: no groups
+    parts = [p.get("groups", []) if isinstance(p, dict) else p for p in job["parts"].values()]
     names = {
         m
         for groups in parts
