@@ -852,3 +852,37 @@ refusée ; tous les modèles cités dans les parts existent). L'étape du
 workflow a été exécutée telle quelle sur des clones jetables : part valide
 committée et présente dans l'archive, part inconnue et nom invalide refusés.
 56 tests passent.
+
+## 2026-11-23 — Premier job GPU réussi : fusions reproduites sur H100
+
+**Job** `20261123T151528-d48999`, part `all` (3 graines, 6 processus sur une
+H100 NVL, 40 CPU). Extraction des deux caches : 590 + 590 séances, aucun
+échec, **130 s** (le premier job : une séance en une heure). Total
+**31 min 49 s**, 6 codes de sortie à 0. Encodeur EEG : ~215 s par pli à 6
+processus sur le GPU, contre ~380 s seul sur le Mac. Fichiers de résultats et
+`job.json` dans `results/gpu/20261123T151528-d48999/` (pas les logs, qui
+citent des participants).
+
+**Résultats** (top-1 repos jour 1 -> jour 2, moyenne des 3 graines, chance
+0,024) :
+
+| variante | H100 | Mac |
+|---|---|---|
+| fusion 5 membres, poids égaux | **0,952** | 0,958 |
+| fusion 5 membres, poids réglés | 0,946 | 0,936 |
+| LDA EEG + LDA battement + enc. respiration | 0,915 | 0,902 |
+| 3 encodeurs, poids égaux | 0,894 | 0,891 |
+| 3 encodeurs, poids réglés | 0,891 | 0,886 |
+| LDA3 + enc. respiration | 0,870 | 0,861 |
+| référence LDA3 (graine 0) | 0,827 [0,774-0,880] | 0,827 |
+
+Par modèle, les écarts H100 - Mac vont de -0,024 à +0,029, toujours dans les
+IC à 95 % (largeur ±0,03-0,05) ; la LDA seule est identique au chiffre près.
+Les écarts viennent des encodeurs (calcul GPU non déterministe, tirages
+différents). Le classement des variantes ne change pas.
+
+**Lecture** : la plateforme est utilisable ; une expérience de cette taille
+(3 graines x 5 plis x 3 encodeurs) tient dans un job avec 20 min de marge.
+
+**Prochaine étape** : pré-entraînement « world model » de l'encodeur EEG sur
+l'EEG des vidéos (seulement accessible sur le GPU).
