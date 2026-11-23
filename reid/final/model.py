@@ -13,6 +13,13 @@ Training (``fit``), per fold, on the training people only:
 After ``fit``, ``val_scores_`` / ``val_pids_`` hold the early-stopped network's
 scores on the inner validation people (used by ``reid.final.fusion``).
 
+``pretrain`` (options of ``reid.final.pretrain``): the network starts from an
+encoder pretrained on the video EEG of the *inner* training people of the
+fold (never the test or inner validation people); input normalisation is
+then recomputed on rest crops. ``val_top1_step0`` is the inner validation
+top-1 of the network before any fine-tuning (pretrained, or random: the
+reference for what pretraining alone brings).
+
 Embedding: mean of the L2-normalised embeddings of every crop of the session
 (see ``reid.final.crops``), re-normalised; scores are cosine similarities.
 """
@@ -85,6 +92,7 @@ class ContrastiveModel:
         pool_crops: bool = False,
         refit: bool = False,
         split_seed: int | None = None,
+        pretrain: dict | None = None,
     ) -> None:
         self.modality, self.conditions, self.seed = modality, tuple(conditions), seed
         self.steps, self.eval_every, self.patience = steps, eval_every, patience
@@ -93,6 +101,7 @@ class ContrastiveModel:
         self.warmup, self.device = warmup, _device(device)
         self.pool_crops, self.refit = pool_crops, refit
         self.split_seed = seed if split_seed is None else split_seed
+        self.pretrain, self.init_state = pretrain, None
         self.crop_kw, self.encoder_kw = crop_kw or {}, encoder_kw or {}
         self.cropper = CROPS[modality](**self.crop_kw)
         self.name = f"f_{modality}{tag}_s{seed - SEED}"
@@ -110,6 +119,7 @@ class ContrastiveModel:
             "pool_crops": pool_crops,
             "refit": refit,
             "split_seed": self.split_seed,
+            "pretrain": pretrain,
             "device": self.device,
             "crop_kw": self.crop_kw,
             "encoder_kw": self.encoder_kw,
@@ -203,6 +213,8 @@ class ContrastiveModel:
 
         torch.manual_seed(self.seed)
         self.net = ENCODERS[self.modality](**self.encoder_kw).to(self.device)
+        if self.init_state is not None:
+            self.net.load_state_dict(self.init_state)
         if hasattr(self.net, "set_normalisation"):
             X, _, _ = self._batch(rng)
             with torch.no_grad():
@@ -221,6 +233,9 @@ class ContrastiveModel:
             ),
         )
         best, best_state, best_step, history, step = -1.0, None, 0, [], 0
+        if validate:  # before any fine-tuning (random or pretrained network)
+            self.val_top1_step0 = self._val_top1()
+            history.append((0, None, round(self.val_top1_step0, 4)))
         for step in range(1, n_steps + 1):
             self.net.train()
             X, person, day = self._batch(rng)
@@ -260,6 +275,16 @@ class ContrastiveModel:
         start = time.time()
         rng = np.random.default_rng(self.seed)
         inner, gal, prb = inner_split(train, self.split_seed)
+        if self.pretrain:
+            from reid.final.pretrain import pretrained
+
+            pids = sorted(set(inner.sessions.participant_id))
+            self.init_state, info = pretrained(pids, self.pretrain, self.device)
+            self.config |= {
+                f"pretrain_{k}": v
+                for k, v in info.items()
+                if k in ("sessions", "people", "steps", "seconds", "memo")
+            }
         self._prepare(inner)
         self.val_gal, self.val_prb = self._pools(gal), self._pools(prb)
         self.val_truth = truth_index(gal.pids, prb.pids)
@@ -287,3 +312,4 @@ class ContrastiveModel:
             "history": history,
             "fit_s": round(time.time() - start, 1),
         }
+        self.config["val_top1_step0"] = round(self.val_top1_step0, 4)

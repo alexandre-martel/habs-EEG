@@ -31,6 +31,22 @@ def _check_no_leak(split: Split) -> None:
     assert not leaked, f"test people in training set: {sorted(leaked)[:5]}"
 
 
+_FOLD_CONFIGS: list = []
+
+
+def _scalars(config: dict) -> dict:
+    """The JSON-friendly scalar / small entries of a config (no histories)."""
+
+    def small(v) -> bool:
+        return v is None or isinstance(v, (bool, int, float, str))
+
+    return {
+        k: v
+        for k, v in config.items()
+        if small(v) or (isinstance(v, dict) and all(map(small, v.values())))
+    }
+
+
 def _score_folds(
     make_model: Callable[[], ReIDModel],
     inv: pd.DataFrame,
@@ -49,6 +65,9 @@ def _score_folds(
         _check_no_leak(split)
         model = make_model()
         model.fit(split.train)
+        # the *fitted* model's config (validation scores, chosen weights or
+        # steps), one per fold: what model choices are made on
+        _FOLD_CONFIGS.append(_scalars(getattr(model, "config", {})))
         S = np.asarray(model.score(split.gallery, split.probe), dtype=float)
         assert S.shape == (len(split.probe), len(split.gallery)), S.shape
         if scenario == "within_cohort":
@@ -101,9 +120,11 @@ def evaluate(
     (e.g. ablation labels)."""
     start = time.time()
     split_kw = {"task": task, "probe_task": probe_task, "part": part}
+    _FOLD_CONFIGS.clear()
     blocks, embeddings = _score_folds(
         make_model, inv, folds, scenario, store, **split_kw
     )
+    fold_configs = list(_FOLD_CONFIGS)
     if not blocks:
         raise ValueError(f"no probe session for scenario {scenario!r} / task {task!r}")
     model = make_model()
@@ -120,6 +141,7 @@ def evaluate(
         "seed": SEED,
         "config": getattr(model, "config", {}),
         "per_fold": [metrics.summarize([b], n_boot=0) for b in blocks],
+        "fold_configs": fold_configs,
         "pooled": metrics.summarize(blocks, n_boot=n_boot),
         "curves": metrics.curves(blocks),
     }

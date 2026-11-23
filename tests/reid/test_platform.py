@@ -74,5 +74,6 @@ def test_every_model_of_the_job_file_is_registered():
 
     job = yaml.safe_load(JOB.read_text())
     assert job["part"] in job["parts"]
-    names = {m for groups in job["parts"].values() for g in groups for m in g}
+    parts = [p["groups"] if isinstance(p, dict) else p for p in job["parts"].values()]
+    names = {m for groups in parts for g in groups for m in g}
     assert names and not names - set(BASELINES | FINAL), names

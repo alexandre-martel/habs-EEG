@@ -48,6 +48,29 @@ MODELS = {
 }
 
 
+# -- EEG encoder pretrained on video EEG (reid.final.pretrain) -----------------
+#: Same fine-tuning as f_eeg_pool_refit (and the same inner split as the
+#: fusions), starting from an encoder pretrained on the video EEG of the inner
+#: training people. The objective is chosen on inner validation (val_top1).
+#: max_s caps one pretraining (5 per run, one per fold) to fit a GPU job.
+PRETRAIN = {
+    o: {"objective": o, "max_s": 240.0} for o in ("mae", "jepa", "session", "xday")
+}
+MODELS |= {
+    f"f_eeg_pt_{o}_s{k}": _factory(
+        "eeg",
+        SEED + k,
+        tag=f"_pt_{o}",
+        refit=True,
+        split_seed=SEED,
+        pretrain=cfg,
+        **EEG_POOL,
+    )
+    for o, cfg in PRETRAIN.items()
+    for k in range(3)
+}
+
+
 # -- score fusion (reid.final.fusion) ------------------------------------------
 #: LDA members read the feature cache, encoders the raw cache. Encoders of a
 #: fusion share the LDA's inner split (split_seed=SEED) so that their

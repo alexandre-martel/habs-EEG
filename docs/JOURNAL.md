@@ -886,3 +886,50 @@ différents). Le classement des variantes ne change pas.
 
 **Prochaine étape** : pré-entraînement « world model » de l'encodeur EEG sur
 l'EEG des vidéos (seulement accessible sur le GPU).
+
+## 2026-11-23 — Modèle final, étape 4 : pré-entraînement de l'encodeur EEG sur la vidéo (code)
+
+**Objectif** : la vidéo contient ~13 fois plus d'EEG par séance que le repos
+(segment continu de ~14 min : 36 extraits de 10 s et les notations ; 596
+séances, 156 Go, ~140 h d'EEG contre ~15 h de repos). Apprendre d'abord ce
+qu'est l'EEG sur cette masse, puis l'identité sur le repos.
+
+**Ce qui a été fait** :
+- `reid/final/video.py` + `reid_extract.py --video` : EEG du segment vidéo
+  entier, prétraité comme le cache brut (référence moyenne, 1-45 Hz, 128 Hz,
+  float16), lu et filtré par morceaux de 60 s avec 2 s de contexte filtré
+  *et* rééchantillonné ; `.npy` mappé en mémoire (une copie en cache disque
+  pour tous les processus) + `.json` (seuil de rejet, électrodes). Aucune
+  étiquette lue (ni émotion ni note).
+- `reid/final/pretrain.py`, 4 objectifs sur le même encodeur (jetons
+  spectraux par électrode) :
+  `mae` (modèle du monde spatial : spectre de la moitié des électrodes masquée
+  prédit depuis les autres), `jepa` (modèle du monde temporel : prédire, avec
+  le décalage, la représentation d'un extrait 4-60 s plus loin donnée par une
+  copie EMA de l'encodeur), `session` (contraste d'instance sans étiquette :
+  deux extraits de la même séance), `xday` (l'objectif d'affinage, même
+  personne sur un autre jour, sur la vidéo).
+- **Fuite** : le pré-entraînement d'un pli ne voit que les personnes
+  d'entraînement *internes* (ni test, ni validation interne qui décide de
+  l'arrêt et des poids de fusion) ; testé. Mémoïsé sur disque avec verrou :
+  les graines d'un job partagent le pré-entraînement de chaque pli.
+- `ContrastiveModel(pretrain=...)` part des poids pré-entraînés (normalisation
+  d'entrée recalculée sur le repos). `val_top1_step0` : validation interne
+  avant tout affinage, pour tous les modèles (réseau aléatoire = référence).
+- Le runner enregistre la config *ajustée* de chaque pli (`fold_configs` :
+  validation interne, pas d'arrêt...) : les choix se font dessus.
+- Plateforme : `caches` par part (`raw`, `features`, `video`), RAM et disque
+  dans `job.json`. Part `pt_screen` : graine 0, encodeur EEG sans
+  pré-entraînement + 4 objectifs, 5 processus ; pré-entraînement plafonné à
+  240 s par pli.
+
+**Contrôles locaux** (6 séances vidéo téléchargées pour les tests) :
+électrodes dans le même ordre que le repos ; pas de saut aux jonctions des
+morceaux (7,8 µV contre 6,9 en moyenne, 99e centile 13,2) ; spectre relatif
+vidéo jour 1 de P001 corrélé à 0,98 avec son repos du même jour et 0,98 avec
+sa vidéo du jour 2, 0,86 avec la vidéo d'une autre personne. 2,5 s et ~1 Go
+par séance à l'extraction. Un pli réel de bout en bout (pré-entraînement
+court) passe. 64 tests.
+
+**Critère de choix** : moyenne sur les 5 plis de la validation interne de
+l'encodeur EEG seul (`fold_configs[*].val_top1`), jamais le test.

@@ -3,6 +3,7 @@
 python scripts/reid_extract.py --data ./data --task rest
 python scripts/reid_extract.py --data ./data --task artefact --shard 0/4
 python scripts/reid_extract.py --raw --task rest     # raw-signal cache (final model)
+python scripts/reid_extract.py --video               # video-task EEG (pretraining)
 
 Resumable: existing files are skipped; failures are logged to
 cache/features/failures.csv and never stop the run. Keys: see reid/features
@@ -18,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from reid.config import FEATURES, MODALITIES, default_data_dir
 from reid.features import run_extraction
 from reid.final.raw import RAW, run_raw_extraction
+from reid.final.video import VIDEO, run_video_extraction
 
 
 def main() -> None:
@@ -27,6 +29,9 @@ def main() -> None:
     parser.add_argument("--data", type=Path, default=None, help="dataset root")
     parser.add_argument("--out", type=Path, default=None)
     parser.add_argument("--raw", action="store_true", help="raw-signal cache")
+    parser.add_argument(
+        "--video", action="store_true", help="video-task EEG cache (pretraining)"
+    )
     parser.add_argument(
         "--task", action="append", default=[], choices=["rest", "artefact", "video"]
     )
@@ -38,6 +43,12 @@ def main() -> None:
 
     i, n = (int(v) for v in args.shard.split("/"))
     data = args.data or default_data_dir()
+    if args.video:
+        counts = run_video_extraction(
+            data, args.out or VIDEO, (i, n), args.overwrite, args.limit
+        )
+        print(f"video: {counts}")
+        return
     for task in args.task or ["rest"]:
         if args.raw:
             counts = run_raw_extraction(

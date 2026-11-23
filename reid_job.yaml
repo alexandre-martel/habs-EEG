@@ -35,3 +35,11 @@ parts:
   s2:
     - [fuse_lda3_resp_s2, fuse_lda2_resp_s2]
     - [fuse_enc3_s2, fuse_enc3_eq_s2, fuse_all5_s2, fuse_all5_eq_s2]
+  pt_screen:                     # EEG pretraining on video EEG, 4 objectives vs none
+    caches: [raw, video]         # (seed 0; choice on inner validation)
+    groups:
+      - [f_eeg_pool_refit_s0]
+      - [f_eeg_pt_mae_s0]
+      - [f_eeg_pt_jepa_s0]
+      - [f_eeg_pt_session_s0]
+      - [f_eeg_pt_xday_s0]

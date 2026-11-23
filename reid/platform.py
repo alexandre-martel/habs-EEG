@@ -92,34 +92,40 @@ def _last_counts(log: Path) -> dict:
 
 
 def _extract(data_dir: Path, cache: Path, logs: Path, job: dict, deadline: float):
-    """Both caches of every task, ``workers`` shards per cache, ``workers``
-    processes at a time. Returns ({task: {kind: counts}}, failed shards)."""
+    """The ``caches`` of the job (features / raw for every task, video once),
+    ``workers`` shards per cache, all queued at once on ``workers`` processes.
+    Returns ({task or "video": {kind: counts}}, failed shards)."""
     n = int(job.get("workers") or os.cpu_count() or 1)
+    caches = job.get("caches", ["features", "raw"])
     logs.mkdir(parents=True, exist_ok=True)
-    counts, problems = {}, []
+    jobs = [(t, k) for t in job["tasks"] for k in ("features", "raw") if k in caches]
+    jobs += [("video", "video")] if "video" in caches else []
+    counts, problems, futures = {}, [], {}
     with ThreadPoolExecutor(n) as pool:
-        for task in job["tasks"]:
-            futures = {}
-            for kind in ("features", "raw"):
-                for i in range(n):
-                    cmd = [sys.executable, str(SCRIPTS / "reid_extract.py")]
-                    cmd += ["--data", str(data_dir), "--task", task]
-                    cmd += ["--out", str(cache / kind), "--shard", f"{i}/{n}"]
-                    if kind == "raw":
-                        cmd.append("--raw")
-                    else:
-                        cmd += ["--modalities", ",".join(job["modalities"])]
-                    log = logs / f"extract_{task}_{kind}_{i}.log"
-                    futures[(kind, i)] = pool.submit(_extract_one, cmd, log, deadline)
-            total = {"features": {}, "raw": {}}
-            for (kind, i), f in futures.items():
-                c, status = f.result()
-                if status != "ok":
-                    problems.append(f"{task} {kind} shard {i}/{n}: {status}")
-                for k, v in c.items():
-                    total[kind][k] = total[kind].get(k, 0) + v
-            counts[task] = total
-            print(f"{task}: {total}", flush=True)
+        for task, kind in jobs:
+            for i in range(n):
+                cmd = [sys.executable, str(SCRIPTS / "reid_extract.py")]
+                cmd += ["--data", str(data_dir), "--out", str(cache / kind)]
+                cmd += ["--shard", f"{i}/{n}"]
+                if kind == "video":
+                    cmd.append("--video")
+                else:
+                    cmd += ["--task", task]
+                if kind == "raw":
+                    cmd.append("--raw")
+                if kind == "features":
+                    cmd += ["--modalities", ",".join(job["modalities"])]
+                log = logs / f"extract_{task}_{kind}_{i}.log"
+                futures[(task, kind, i)] = pool.submit(_extract_one, cmd, log, deadline)
+        for (task, kind, i), f in futures.items():
+            c, status = f.result()
+            if status != "ok":
+                problems.append(f"{task} {kind} shard {i}/{n}: {status}")
+            total = counts.setdefault(task, {}).setdefault(kind, {})
+            for k, v in c.items():
+                total[k] = total.get(k, 0) + v
+    for task, total in counts.items():
+        print(f"{task}: {total}", flush=True)
     for p in problems:
         print(f"extraction problem: {p}", flush=True)
     return counts, problems
@@ -183,6 +189,15 @@ def _run_groups(
 def _hardware() -> dict:
     info = {"cpus": os.cpu_count(), "python": sys.version.split()[0]}
     try:
+        info["ram_gb"] = round(
+            os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / 1e9, 1
+        )
+        info["tmp_free_gb"] = round(
+            shutil.disk_usage(tempfile.gettempdir()).free / 1e9, 1
+        )
+    except (ValueError, OSError):
+        pass
+    try:
         import torch
 
         info |= {"torch": torch.__version__, "cuda": torch.cuda.is_available()}
@@ -202,10 +217,9 @@ def select_part(job: dict, part_file: Path = PART) -> dict:
     name = name or str(job.get("part", ""))
     if name not in job["parts"]:
         raise SystemExit(f"unknown part {name!r}; known: {sorted(job['parts'])}")
-    return {k: v for k, v in job.items() if k != "parts"} | {
-        "part": name,
-        "groups": job["parts"][name],
-    }
+    part = job["parts"][name]  # a list of groups, or a dict of overrides
+    part = part if isinstance(part, dict) else {"groups": part}
+    return {k: v for k, v in job.items() if k != "parts"} | part | {"part": name}
 
 
 def process(data_dir: Path, out_dir: Path) -> None:
