@@ -968,3 +968,29 @@ d'entraînement internes seulement), 3000 pas en 100-175 s (`xday` plafonné
 
 **Suite** : affinage à lr 3e-4 (avec un témoin sans pré-entraînement au même
 lr), `jepa` complété ; deux jobs plus légers (3 et 2 processus).
+
+## 2026-11-23 — Modèle final, étape 5 : modèle joint (fusion apprise) — négatif
+
+**Job** `20261123T165450-12a310` (part `joint`, 3 graines, 3 processus,
+27 min, codes 0). Modèle joint = 3 encodeurs + tête de fusion entraînés
+ensemble (`reid/final/joint.py`).
+
+| modèle (moyenne 3 graines, test) | joint | encodeurs séparés (job du 23/11) |
+|---|---|---|
+| seul | 0,808 (0,788 / 0,798 / 0,837) | 3 encodeurs fusionnés : 0,891 réglés, 0,894 égaux |
+| + LDA EEG + LDA battement, poids réglés | 0,915 | 5 membres : 0,946 |
+| idem, poids égaux | 0,930 | 5 membres : 0,952 |
+
+Par pli (graine 0), le joint est sous la fusion des encodeurs séparés sur les
+5 plis (0,71-0,90 contre 0,86-0,95). Sa validation interne est pourtant haute
+(0,909 en moyenne, graine 0) : l'arrêt précoce sur ~33 personnes est
+optimiste pour tous les modèles (encodeur EEG seul : 0,829 en validation,
+0,721 au test). La validation de la fusion des encodeurs séparés n'était pas
+enregistrée dans l'ancien job (avant `fold_configs`) : elle est relancée
+(`joint2`) pour comparer sur le bon critère.
+
+**Hypothèses** : un seul pas d'arrêt pour les trois branches (séparés,
+l'EEG, le battement et la respiration s'arrêtent chacun au meilleur pas) ;
+poids des pertes par branche trop faible. Variantes `_bw1` (branches et
+fusion à poids égal, 50 % des modalités masquées) et `_bw4` (branches
+dominantes), graine 0, avec la fusion des encodeurs séparés comme témoin.

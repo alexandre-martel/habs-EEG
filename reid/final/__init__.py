@@ -93,7 +93,18 @@ def _joint(k: int, **kw):
     return make
 
 
-MODELS |= {f"j_all3_s{k}": _joint(k) for k in range(3)}
+#: "_bw1": branches weigh as much as the fused loss, half the modalities hidden;
+#: "_bw4": branch losses dominate (the head is then nearly a learned average)
+JOINT = {
+    "": {},
+    "_bw1": {"branch_weight": 1.0, "drop_p": 0.5},
+    "_bw4": {"branch_weight": 4.0},
+}
+MODELS |= {
+    f"j_all3{t}_s{k}": _joint(k, tag=t, **kw)
+    for t, kw in JOINT.items()
+    for k in range(3)
+}
 
 
 # -- score fusion (reid.final.fusion) ------------------------------------------

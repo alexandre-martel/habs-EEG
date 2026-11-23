@@ -59,3 +59,8 @@ parts:
     groups:
       - [f_eeg_pt_jepa_lr3_s0]
       - [f_eeg_pt_session_lr3_s0]
+  joint2:                        # joint variants vs separate encoders (seed 0)
+    groups:
+      - [fuse_enc3_s0, fuse_enc3_eq_s0]
+      - [j_all3_bw1_s0]
+      - [j_all3_bw4_s0]
