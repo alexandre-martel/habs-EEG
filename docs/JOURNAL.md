@@ -1074,3 +1074,56 @@ la fusion, avec ~33 personnes, sur-ajuste davantage.
 **Conclusion de l'étape 5** : la fusion apprise de bout en bout n'apporte rien
 ici (~250 personnes d'entraînement par pli) ; le modèle final reste la fusion
 de scores de membres entraînés séparément (`fuse_all5`).
+
+## 2026-11-23 — Pré-entraînement `mae` long (20 000 pas) : moins bon que court
+
+**Job** `20261123T193123-445824` (part `pt_long`, 35 min, codes 0). Les 5
+pré-entraînements en parallèle en début de job (611 s chacun, tous retrouvés
+ensuite dans le mémo : `pretrain_memo: True`), puis l'affinage à deux taux.
+Validation interne (~33 personnes par pli, chance ≈ 0,03) :
+
+| encodeur EEG | validation, plis 1-5 | moyenne | pas 0 | test top-1 |
+|---|---|---|---|---|
+| sans pré-entraînement, lr 1e-3 | 0,727 0,812 0,818 0,909 0,879 | 0,829 | 0,579 | 0,721 |
+| `mae` 3 000 pas, lr 1e-3 (criblage 1) | 0,758 0,844 0,848 0,879 0,848 | **0,835** | 0,683 | 0,731 |
+| `mae` 20 000 pas, lr 1e-3 | 0,697 0,781 0,848 0,848 0,818 | 0,798 | 0,652 | 0,736 [0,678 ; 0,793] |
+| `mae` 20 000 pas, lr 3e-4 | 0,727 0,781 0,848 0,879 0,879 | 0,823 | 0,652 | 0,688 [0,630 ; 0,750] |
+
+Pré-entraîner plus longtemps fait baisser la séparation des personnes au
+pas 0 (0,652 contre 0,683) et la validation après affinage : la
+reconstruction d'électrodes masquées apprend au-delà de ce qui sert
+l'identité. Bilan des criblages : seul `mae` 3 000 pas, lr 1e-3 est (à peine)
+au-dessus du témoin en validation, +0,006, bien dans le bruit.
+
+**Dernier test de l'étape 4** : remplacer l'encodeur EEG de `fuse_all5` par
+cet encodeur pré-entraîné (membre `enc_eeg_pt`, fusions `fuse_all5_pt` et
+`_pt_eq`), 3 graines, avec `fuse_all5` relancé dans le même job pour avoir sa
+validation (part `pt_fuse`). Critère : validation interne de la fusion.
+
+## 2026-11-23 — Fusion avec l'encodeur EEG pré-entraîné : aucun gain, étape 4 close (négatif)
+
+**Job** `20261123T222317-55b902` (part `pt_fuse`, 39 min, 11 processus,
+codes 0). `fuse_all5` et `fuse_all5_pt` (encodeur EEG pré-entraîné `mae`
+3 000 pas sur l'EEG vidéo des personnes d'entraînement interne), 3 graines,
+même job. Moyennes sur 3 graines ; validation interne = moyenne des 5 plis
+(~33 personnes par pli) ; test : top-1 poolé, IC 95 % par graine en
+annexe des JSON, chance 0,024.
+
+| fusion | validation, poids égaux | validation, poids réglés* | test, poids égaux | test, poids réglés |
+|---|---|---|---|---|
+| `fuse_all5` (EEG sans pré-entraînement) | **0,941** | 0,971 | **0,950** (0,952 / 0,947 / 0,952) | 0,937 (0,952 / 0,913 / 0,947) |
+| `fuse_all5_pt` (EEG pré-entraîné) | 0,939 | 0,972 | 0,949 (0,957 / 0,957 / 0,933) | 0,934 (0,938 / 0,942 / 0,923) |
+
+\* biaisée vers le haut : les poids sont choisis sur cette même validation.
+
+Écarts de 0,001-0,003, dans le bruit, dans les deux sens. Le
+pré-entraînement de l'encodeur EEG sur ~410 séances vidéo de 14 min
+n'améliore ni l'encodeur seul de façon nette (+0,006 en validation) ni la
+fusion. `fuse_all5_s1` (poids réglés) donne 0,913 ici contre 0,942 au job du
+23/11 : l'entraînement GPU n'est pas déterministe d'un job à l'autre, ce qui
+rappelle que ±0,03 entre deux runs isolés n'est pas un signal.
+
+**Bilan des étapes 4 et 5** : ni le pré-entraînement « world model » sur la
+vidéo, ni la fusion apprise de bout en bout ne battent le modèle final
+actuel, `fuse_all5_eq` (2 LDA + 3 encodeurs entraînés séparément, poids
+égaux) : 0,950 en test sur 3 graines (chance 0,024). Jobs GPU mis en pause.

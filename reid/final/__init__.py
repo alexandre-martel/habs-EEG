@@ -134,6 +134,19 @@ def _members(k: int) -> dict:
             _factory("eeg", SEED + k, tag="_pool_refit", **split, **EEG_POOL),
             "raw",
         ),
+        # the EEG encoder pretrained on video EEG (mae, 3000 steps: best inner
+        # validation of the screens, 0.835 vs 0.829 without), same fine-tuning
+        "enc_eeg_pt": (
+            _factory(
+                "eeg",
+                SEED + k,
+                tag="_pt_mae",
+                pretrain=PRETRAIN["mae"],
+                **split,
+                **EEG_POOL,
+            ),
+            "raw",
+        ),
         "enc_ecg_beat": (_factory("ecg_beat", SEED + k, tag="_refit", **split), "raw"),
         "enc_resp": (_factory("resp", SEED + k, tag="_refit", **split), "raw"),
         "joint3": (_joint(k), "raw"),
@@ -153,6 +166,15 @@ FUSIONS = {
     ),
     "fuse_all5_eq": (
         ("lda_eeg", "lda_ecg_beat", "enc_eeg", "enc_ecg_beat", "enc_resp"),
+        "equal",
+    ),
+    # the pretrained EEG encoder in place of the one trained from scratch
+    "fuse_all5_pt": (
+        ("lda_eeg", "lda_ecg_beat", "enc_eeg_pt", "enc_ecg_beat", "enc_resp"),
+        "tuned",
+    ),
+    "fuse_all5_pt_eq": (
+        ("lda_eeg", "lda_ecg_beat", "enc_eeg_pt", "enc_ecg_beat", "enc_resp"),
         "equal",
     ),
     # the joint model in place of the three separately trained encoders (alone:

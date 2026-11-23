@@ -74,6 +74,20 @@ parts:
       - [pretrain, f_eeg_pt_maelong_s0, 4]
       - [f_eeg_pt_maelong_lr3_s0]
       - [f_eeg_pt_maelong_s0]
+  pt_fuse:                       # fuse_all5 with the mae-pretrained EEG encoder,
+    caches: [features, raw, video]  # 3 seeds, vs fuse_all5 (now with fold_configs)
+    groups:
+      - [pretrain, f_eeg_pt_mae_s0, 0]
+      - [pretrain, f_eeg_pt_mae_s0, 1]
+      - [pretrain, f_eeg_pt_mae_s0, 2]
+      - [pretrain, f_eeg_pt_mae_s0, 3]
+      - [pretrain, f_eeg_pt_mae_s0, 4]
+      - [fuse_all5_s0, fuse_all5_eq_s0]
+      - [fuse_all5_pt_s0, fuse_all5_pt_eq_s0]
+      - [fuse_all5_s1, fuse_all5_eq_s1]
+      - [fuse_all5_pt_s1, fuse_all5_pt_eq_s1]
+      - [fuse_all5_s2, fuse_all5_eq_s2]
+      - [fuse_all5_pt_s2, fuse_all5_pt_eq_s2]
   ecg_p043:                      # whole-rest ECG (scripts/ecg_rest_full.py), no model;
     job: ecg_rest                # outputs in out_dir/ecg_rest, kept out of the
     participants: [P043]         # GitHub artifact (public repo)
