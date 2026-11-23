@@ -933,3 +933,38 @@ court) passe. 64 tests.
 
 **Critère de choix** : moyenne sur les 5 plis de la validation interne de
 l'encodeur EEG seul (`fold_configs[*].val_top1`), jamais le test.
+
+## 2026-11-23 — Pré-entraînement vidéo, criblage 1 (GPU, graine 0)
+
+**Job** `20261123T164554-426e24` (part `pt_screen`, H100, 338 Go de RAM) :
+extraction repos brut 590 + **vidéo 596 séances, aucun échec, en 164 s** ;
+5 processus ; 52 min, `jepa` et `xday` arrêtés par la limite après 4 plis
+(non enregistrés ; chiffres des 3 premiers plis relevés dans le log).
+Pré-entraînement : ~410 séances vidéo de ~252 personnes par pli (personnes
+d'entraînement internes seulement), 3000 pas en 100-175 s (`xday` plafonné
+à 240 s).
+
+**Résultats** (validation interne de l'encodeur EEG seul, moyenne des plis ;
+« départ » = avant tout affinage ; test pour information) :
+
+| encodeur EEG | validation | départ | test |
+|---|---|---|---|
+| sans pré-entraînement | 0,829 | 0,579 | 0,721 [0,663-0,784] |
+| `mae` | **0,835** | **0,683** | 0,731 [0,673-0,788] |
+| `session` | 0,787 | 0,640 | 0,702 [0,639-0,760] |
+| `jepa` (3 plis) | 0,805 (témoin 0,786) | – | – |
+| `xday` (3 plis) | 0,724 (témoin 0,786) | – | – |
+
+**Lecture** :
+- La vidéo apprend quelque chose d'utile : le point de départ passe de 0,58
+  (réseau aléatoire) à 0,68 (`mae`) sans avoir vu une seule étiquette.
+- Mais après affinage l'écart disparaît (+0,006, très en dessous du bruit :
+  ~33 personnes de validation par pli). Les modèles pré-entraînés culminent
+  très tôt (pas 50-150 contre 50-450) : l'affinage à lr 1e-3 efface
+  probablement le pré-entraînement.
+- `xday` (identité sur la vidéo) fait pire : l'écart vidéo / repos compte
+  plus que la quantité de données. `jepa` : dispersion des représentations
+  faible (`z_std` 0,055 pour ~0,125 attendu) : effondrement partiel.
+
+**Suite** : affinage à lr 3e-4 (avec un témoin sans pré-entraînement au même
+lr), `jepa` complété ; deux jobs plus légers (3 et 2 processus).

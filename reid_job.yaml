@@ -48,3 +48,14 @@ parts:
       - [fuse_joint_s0, fuse_lda2_joint_s0, fuse_lda2_joint_eq_s0]
       - [fuse_joint_s1, fuse_lda2_joint_s1, fuse_lda2_joint_eq_s1]
       - [fuse_joint_s2, fuse_lda2_joint_s2, fuse_lda2_joint_eq_s2]
+  pt_screen2a:                   # fine-tuning at lr 3e-4; jepa completed
+    caches: [raw, video]
+    groups:
+      - [f_eeg_lr3_s0]
+      - [f_eeg_pt_mae_lr3_s0]
+      - [f_eeg_pt_jepa_s0]
+  pt_screen2b:
+    caches: [raw, video]
+    groups:
+      - [f_eeg_pt_jepa_lr3_s0]
+      - [f_eeg_pt_session_lr3_s0]

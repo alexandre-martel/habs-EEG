@@ -56,17 +56,29 @@ MODELS = {
 PRETRAIN = {
     o: {"objective": o, "max_s": 240.0} for o in ("mae", "jepa", "session", "xday")
 }
+#: fine-tuning variants: "_lr3" fine-tunes at lr 3e-4 instead of 1e-3 (the
+#: first screen stopped early, step 50-150: fine-tuning may erase pretraining)
+FINE_TUNE = {"": {}, "_lr3": {"lr": 3e-4}}
 MODELS |= {
-    f"f_eeg_pt_{o}_s{k}": _factory(
+    f"f_eeg_pt_{o}{ft}_s{k}": _factory(
         "eeg",
         SEED + k,
-        tag=f"_pt_{o}",
+        tag=f"_pt_{o}{ft}",
         refit=True,
         split_seed=SEED,
         pretrain=cfg,
         **EEG_POOL,
+        **kw,
     )
     for o, cfg in PRETRAIN.items()
+    for ft, kw in FINE_TUNE.items()
+    for k in range(3)
+}
+#: control: no pretraining, same lower learning rate
+MODELS |= {
+    f"f_eeg_lr3_s{k}": _factory(
+        "eeg", SEED + k, tag="_lr3", refit=True, split_seed=SEED, lr=3e-4, **EEG_POOL
+    )
     for k in range(3)
 }
 
