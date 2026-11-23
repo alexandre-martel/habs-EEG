@@ -56,6 +56,10 @@ MODELS = {
 PRETRAIN = {
     o: {"objective": o, "max_s": 240.0} for o in ("mae", "jepa", "session", "xday")
 }
+#: long masked-electrode pretraining (the only objective with a hint of gain in
+#: the first screens), run for the 5 folds in parallel at the start of a job
+#: (``["pretrain", model, fold]`` groups, scripts/reid_pretrain.py)
+PRETRAIN["maelong"] = {"objective": "mae", "steps": 20000, "max_s": 1260.0}
 #: fine-tuning variants: "_lr3" fine-tunes at lr 3e-4 instead of 1e-3 (the
 #: first screen stopped early, step 50-150: fine-tuning may erase pretraining)
 FINE_TUNE = {"": {}, "_lr3": {"lr": 3e-4}}

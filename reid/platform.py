@@ -138,6 +138,26 @@ def _pump(stream, prefix: str, log) -> None:
         print(f"[{prefix}] {line}", end="", flush=True)
 
 
+def _group_command(group: list, data_dir: Path, job: dict) -> list:
+    """``[model, ...]``: evaluate the models (scripts/reid_run.py);
+    ``["pretrain", model, fold, ...]``: precompute the model's pretraining for
+    those folds (scripts/reid_pretrain.py), shared through the disk memo."""
+    task = job.get("eval_task", "rest")
+    if group and group[0] == "pretrain":
+        cmd = [sys.executable, str(SCRIPTS / "reid_pretrain.py"), "--task", task]
+        cmd += ["--data", str(data_dir), "--model", str(group[1])]
+        for fold in group[2:]:
+            cmd += ["--fold", str(fold)]
+        return cmd
+    cmd = [sys.executable, str(SCRIPTS / "reid_run.py")]
+    cmd += ["--data", str(data_dir), "--task", task]
+    for m in group:
+        cmd += ["--model", m]
+    for sc in job.get("scenarios", ["d1_to_d2"]):
+        cmd += ["--scenario", sc]
+    return cmd
+
+
 def _run_groups(
     data_dir: Path, cache: Path, out_dir: Path, job: dict, deadline: float
 ) -> list:
@@ -151,12 +171,7 @@ def _run_groups(
     logs.mkdir(parents=True, exist_ok=True)
     procs = []
     for k, models in enumerate(job["groups"]):
-        cmd = [sys.executable, str(SCRIPTS / "reid_run.py")]
-        cmd += ["--data", str(data_dir), "--task", job.get("eval_task", "rest")]
-        for m in models:
-            cmd += ["--model", m]
-        for s in job.get("scenarios", ["d1_to_d2"]):
-            cmd += ["--scenario", s]
+        cmd = _group_command(models, data_dir, job)
         proc = subprocess.Popen(
             cmd,
             cwd=REPO,

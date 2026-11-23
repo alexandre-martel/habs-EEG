@@ -994,3 +994,38 @@ l'EEG, le battement et la respiration s'arrêtent chacun au meilleur pas) ;
 poids des pertes par branche trop faible. Variantes `_bw1` (branches et
 fusion à poids égal, 50 % des modalités masquées) et `_bw4` (branches
 dominantes), graine 0, avec la fusion des encodeurs séparés comme témoin.
+
+## 2026-11-23 — Pré-entraînement vidéo, criblage 2a et pré-entraînement long
+
+**Job** `20261123T175444-844f6c` (part `pt_screen2a`, 3 processus) : témoin
+sans pré-entraînement à lr 3e-4 complet ; `mae` à lr 3e-4 et `jepa` encore
+arrêtés à 52 min après 4 plis (log). Validation interne, plis 1-4 :
+
+| encodeur EEG | plis 1-4 | moyenne |
+|---|---|---|
+| sans pré-entraînement, lr 1e-3 | 0,727 0,812 0,818 0,909 | 0,817 |
+| sans pré-entraînement, lr 3e-4 | 0,727 0,812 0,879 0,848 | 0,817 (5 plis : 0,829 ; test 0,750) |
+| `mae`, lr 1e-3 | 0,758 0,844 0,848 0,879 | 0,832 |
+| `mae`, lr 3e-4 | 0,758 0,844 0,848 0,909 | **0,840** |
+| `jepa`, lr 1e-3 | 0,667 0,719 0,818 0,879 | 0,771 |
+
+`mae` est au-dessus ou à égalité du témoin sur chaque pli (+0,02 à +0,03),
+dans le bruit mais cohérent ; `jepa` en dessous. Le taux d'affinage change peu.
+
+**Pourquoi les jobs débordaient** : un pli avec pré-entraînement prenait
+540-760 s contre 170-450 s sans, alors que le pré-entraînement lui-même dure
+100-170 s. En cause : la recherche des extraits vidéo propres (seuil
+crête-à-crête sur des fenêtres de 2 s tous les 0,25 s, sur 410 séances de
+14 min) refaite à chaque pli et dans chaque processus.
+
+**Corrections** :
+- les débuts d'extraits propres sont calculés une fois à l'extraction
+  (`_starts.npy`, identiques à un calcul à la volée : vérifié) et mémoïsés en
+  mémoire sinon ; durée de préparation journalisée (`prepare_s`) ;
+- `scripts/reid_pretrain.py` + groupes `["pretrain", modèle, pli]` : les
+  pré-entraînements des 5 plis tournent en parallèle en début de job ; les
+  processus d'affinage les retrouvent dans le mémo disque (même pli, mêmes
+  personnes internes, même configuration : vérifié sur les vraies données,
+  `memo: True`) ou attendent le verrou.
+- Part `pt_long` : `mae` 20 000 pas (au lieu de 3 000), ≤ 21 min par pli, 5
+  plis en parallèle, affiné à lr 1e-3 et 3e-4 (même pré-entraînement).

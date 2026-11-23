@@ -75,5 +75,22 @@ def test_every_model_of_the_job_file_is_registered():
     job = yaml.safe_load(JOB.read_text())
     assert job["part"] in job["parts"]
     parts = [p["groups"] if isinstance(p, dict) else p for p in job["parts"].values()]
-    names = {m for groups in parts for g in groups for m in g}
+    names = {
+        m
+        for groups in parts
+        for g in groups
+        for m in (g[1:2] if g[0] == "pretrain" else g)
+    }
     assert names and not names - set(BASELINES | FINAL), names
+
+
+def test_group_commands(tmp_path):
+    from reid.platform import _group_command
+
+    job = {"eval_task": "rest", "scenarios": ["d1_to_d2"]}
+    cmd = _group_command(["m1", "m2"], tmp_path, job)
+    assert cmd[1].endswith("reid_run.py") and cmd.count("--model") == 2
+    cmd = _group_command(["pretrain", "f_eeg_pt_mae_s0", 0, 3], tmp_path, job)
+    assert cmd[1].endswith("reid_pretrain.py")
+    assert cmd[cmd.index("--model") + 1] == "f_eeg_pt_mae_s0"
+    assert [cmd[i + 1] for i, c in enumerate(cmd) if c == "--fold"] == ["0", "3"]

@@ -79,6 +79,28 @@ def _key(pids, cfg: dict, root: Path) -> str:
     return hashlib.sha1(blob.encode()).hexdigest()[:16]
 
 
+_POOLS: dict = {}
+
+
+def _pool(pid: str, day: int, root: Path, crops: EEGCrops):
+    """Crop pool of one video session: precomputed clean starts when they were
+    made for these crop settings, else computed (memoised per process)."""
+    key = (str(root), pid, day, crops.crop_s, crops.grid_s)
+    if key not in _POOLS:
+        feats = load_video(pid, day, root)
+        if feats is None:
+            pool = None
+        elif feats.get("starts_crop") == {
+            "crop_s": crops.crop_s,
+            "grid_s": crops.grid_s,
+        }:
+            pool = [(feats["eeg_0"], feats["starts"])] if len(feats["starts"]) else None
+        else:
+            pool = crops.prepare(feats, ("video",))
+        _POOLS[key] = pool
+    return _POOLS[key]
+
+
 class _Data:
     """Crop pools of the video sessions of ``pids``."""
 
@@ -89,8 +111,7 @@ class _Data:
         for pid, day in video_sessions(root):
             if pid not in wanted:
                 continue
-            feats = load_video(pid, day, root)
-            pool = crops.prepare(feats, ("video",)) if feats else None
+            pool = _pool(pid, day, root, crops)
             if pool:
                 self.pools.append(pool)
                 self.pid.append(pid)
@@ -267,11 +288,14 @@ def pretrained(pids, cfg: dict, device: str, root: Path = VIDEO, cache=None):
         if target.is_file():
             saved = torch.load(target, map_location="cpu", weights_only=False)
             return saved["state"], saved["info"] | {"memo": True}
+        t0 = time.time()
         data = _Data(pids, root, EEGCrops())
+        prep = round(time.time() - t0, 1)
         if not data.pools:
             raise ValueError(f"no video EEG for these people under {root}")
         if cfg["objective"] == "xday" and len(data.multi) < 4:
             raise ValueError("xday needs people with video on two days")
         state, info = _train(data, cfg, device)
+        info["prepare_s"] = prep
         torch.save({"state": state, "info": info, "config": cfg}, target)
         return state, info

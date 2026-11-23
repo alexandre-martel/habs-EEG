@@ -64,3 +64,13 @@ parts:
       - [fuse_enc3_s0, fuse_enc3_eq_s0]
       - [j_all3_bw1_s0]
       - [j_all3_bw4_s0]
+  pt_long:                       # mae pretraining 20000 steps, 5 folds in parallel
+    caches: [raw, video]
+    groups:
+      - [pretrain, f_eeg_pt_maelong_s0, 0]
+      - [pretrain, f_eeg_pt_maelong_s0, 1]
+      - [pretrain, f_eeg_pt_maelong_s0, 2]
+      - [pretrain, f_eeg_pt_maelong_s0, 3]
+      - [pretrain, f_eeg_pt_maelong_s0, 4]
+      - [f_eeg_pt_maelong_lr3_s0]
+      - [f_eeg_pt_maelong_s0]

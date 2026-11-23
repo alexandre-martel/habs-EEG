@@ -11,7 +11,9 @@ then cut), so that a 1 kHz recording of 14 min never sits in memory whole.
 
 The EEG is stored as a bare ``.npy`` so that every process memory-maps the
 same file (one copy in the page cache however many processes pretrain). The
-``.json`` holds the peak-to-peak rejection threshold, channel order and length.
+``.json`` holds the peak-to-peak rejection threshold, channel order and length;
+``_starts.npy`` the clean crop starts of the default ``EEGCrops`` (computed
+once here: doing it per fold and per process cost ~200 s a fold).
 About 13 MB per session, ~8 GB for the 596 sessions: GPU jobs only (the data
 are not downloaded locally, apart from a few sessions for the tests).
 
@@ -32,6 +34,7 @@ import numpy as np
 
 from reid import preprocess
 from reid.config import CACHE, EEG_BAND, PAD_S, TASKS
+from reid.final.crops import EEGCrops
 from reid.final.raw import EEG_RATE, F16_MAX, _read, eeg_threshold, resample
 from reid.segments import open_recording
 
@@ -102,6 +105,11 @@ def run_video_extraction(
             meta = json.loads(meta_path.read_text(encoding="utf-8"))
             eeg, info = extract_video_eeg(bdf, meta)
             np.save(target.with_suffix(".npy"), eeg)
+            crops = EEGCrops()
+            pool = crops.prepare(_as_feats(eeg, info), ("video",))
+            starts = pool[0][1] if pool else np.empty(0, int)
+            np.save(folder / f"{pid}_day-{day}_starts.npy", starts.astype(np.int32))
+            info["starts_crop"] = {"crop_s": crops.crop_s, "grid_s": crops.grid_s}
             # written last: its presence marks a complete session
             target.with_suffix(".json").write_text(json.dumps(info))
             counts["done"] += 1
@@ -115,20 +123,29 @@ def run_video_extraction(
     return counts
 
 
+def _as_feats(eeg, info: dict) -> dict:
+    return {
+        "seg_condition": np.array(["video"]),
+        "eeg_0": eeg,
+        "eeg_reject_uv": info["eeg_reject_uv"],
+        "ch_names": np.array(info["ch_names"]),
+    }
+
+
 def load_video(pid: str, day: int, root: Path = VIDEO) -> dict | None:
     """The session as a raw-cache-like dict (one ``video`` segment, EEG
-    memory-mapped), or None if it was not extracted."""
+    memory-mapped), or None if it was not extracted. With ``starts`` (and
+    ``starts_crop``, the crop settings they hold for) when precomputed."""
     base = root / "video" / f"{pid}_day-{day}"
     meta = base.with_suffix(".json")
     if not meta.is_file():
         return None
     info = json.loads(meta.read_text())
-    return {
-        "seg_condition": np.array(["video"]),
-        "eeg_0": np.load(base.with_suffix(".npy"), mmap_mode="r"),
-        "eeg_reject_uv": info["eeg_reject_uv"],
-        "ch_names": np.array(info["ch_names"]),
-    }
+    feats = _as_feats(np.load(base.with_suffix(".npy"), mmap_mode="r"), info)
+    starts = root / "video" / f"{pid}_day-{day}_starts.npy"
+    if starts.is_file() and "starts_crop" in info:
+        feats["starts"], feats["starts_crop"] = np.load(starts), info["starts_crop"]
+    return feats
 
 
 def video_sessions(root: Path = VIDEO) -> list[tuple[str, int]]:
