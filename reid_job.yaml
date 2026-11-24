@@ -137,3 +137,12 @@ parts:
       - [fuse_vid3_eq_s2]
       - [fuse_vid3_eq_s3]
       - [fuse_vid3_eq_s4]
+  dump_w:                        # LDA on the video features + video encoders,
+    tasks: [rest, video]         # seeds 3, 5, 6 (seed 3 timed out in dump_v)
+    feature_tasks: [rest, video]
+    caches: [features, raw]
+    groups:
+      - [fuse_lvid_eq_s0]
+      - [fuse_vid3_eq_s3]
+      - [fuse_vid3_eq_s5]
+      - [fuse_vid3_eq_s6]

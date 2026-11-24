@@ -150,8 +150,12 @@ class LdaModel:
         df = train.sessions
         both = df.groupby("participant_id").day.agg(lambda d: {1, 2} <= set(d))
         pool = np.array(sorted(both.index[both]))
-        rng = np.random.default_rng(self.seed)
-        val = set(rng.choice(pool, max(len(pool) // 5, 2), replace=False))
+        imposed = getattr(self, "val_people", None)  # TaskView: another task's split
+        if imposed is not None:
+            val = set(pool) & set(imposed)
+        else:
+            rng = np.random.default_rng(self.seed)
+            val = set(rng.choice(pool, max(len(pool) // 5, 2), replace=False))
         inner = train.subset(~df.participant_id.isin(val).to_numpy())
         gal = train.subset((df.participant_id.isin(val) & (df.day == 1)).to_numpy())
         prb = train.subset((df.participant_id.isin(val) & (df.day == 2)).to_numpy())

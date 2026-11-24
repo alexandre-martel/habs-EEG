@@ -57,3 +57,24 @@ def test_video_member_fuses_with_rest_members():
     assert S.shape == (len(split.probe), len(split.gallery)) and np.isfinite(S).all()
     top1 = topk(*rank_counts(S, truth_index(split.gallery.pids, split.probe.pids)), 1)
     assert top1.mean() > 1 / len(split.gallery)
+
+
+def test_lda_inner_split_honours_imposed_validation_people(monkeypatch):
+    import pandas as pd
+
+    from reid.baselines.b3_lda_plda import LdaModel
+    from reid.eval.protocol import SessionSet
+
+    pids = [f"P{i:03d}" for i in range(40)]
+    df = pd.DataFrame(
+        {"participant_id": pids * 2, "day": [1] * 40 + [2] * 40, "task": "video"}
+    )
+    rng = np.random.default_rng(0)
+    monkeypatch.setattr(LdaModel, "_fit_pipeline", lambda self, s, n: None)
+    monkeypatch.setattr(
+        LdaModel, "_embed", lambda self, pipe, s: rng.normal(size=(len(s), 4))
+    )
+    lda = LdaModel(("eeg",), conditions=("video",), n_components=(4, 8))
+    lda.val_people = {"P001", "P007", "P099"}  # P099: not in this task's pool
+    lda._select_n(SessionSet(df))
+    assert set(lda.val_pids_[0]) == set(lda.val_pids_[1]) == {"P001", "P007"}

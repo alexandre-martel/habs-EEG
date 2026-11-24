@@ -150,6 +150,11 @@ def variants(members: set[str], seeds: list[int]) -> dict:
             out[f"vid3 ens{n}"] = vid
             out[f"all5+vid3 ens{n}"] = [*out[f"all5 ens{n}"], *vid]
             out[f"all5+vid eeg ens{n}"] = [*out[f"all5 ens{n}"], v["enc_eeg"]]
+            lv = [[m] for m in ("lda_eeg_vid", "lda_ecg_beat_vid", "lda_resp_vid")]
+            if all(m[0] in members for m in lv):
+                out[f"all5+vid3+lvid2 ens{n}"] = [*out[f"all5+vid3 ens{n}"], *lv[:2]]
+                out[f"all5+vid3+lvid3 ens{n}"] = [*out[f"all5+vid3 ens{n}"], *lv]
+                out[f"vid3+lvid3 ens{n}"] = [*vid, *lv]
             # rest and video of one signal averaged in one slot
             out[f"all5 x vid ens{n}"] = [
                 *lda2,

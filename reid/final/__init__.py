@@ -124,12 +124,27 @@ def _lda(*modalities):
     return make, "features"
 
 
+def _lda_vid(*modalities):
+    """LDA on the video-task features of the same sessions (TaskView)."""
+
+    def make():
+        from reid.baselines.b3_lda_plda import LdaModel
+        from reid.final.fusion import TaskView
+
+        return TaskView(lambda: LdaModel(modalities, conditions=("video",)), "video")
+
+    return make, "features"
+
+
 def _members(k: int) -> dict:
     split = {"split_seed": SEED, "refit": True}
     return {
         "lda_eeg": _lda("eeg"),
         "lda_ecg_beat": _lda("ecg_beat"),
         "lda_eeg+ecg_beat+resp": _lda("eeg", "ecg_beat", "resp"),
+        "lda_eeg_vid": _lda_vid("eeg"),
+        "lda_ecg_beat_vid": _lda_vid("ecg_beat"),
+        "lda_resp_vid": _lda_vid("resp"),
         "enc_eeg": (
             _factory("eeg", SEED + k, tag="_pool_refit", **split, **EEG_POOL),
             "raw",
@@ -215,6 +230,7 @@ FUSIONS = {
         "equal",
     ),
     "fuse_eeg_pt": (("enc_eeg_pt",), "equal"),
+    "fuse_lvid_eq": (("lda_eeg_vid", "lda_ecg_beat_vid", "lda_resp_vid"), "equal"),
     # video members only (score dumps; fused offline with the rest members)
     "fuse_vid3_eq": (("enc_eeg_vid", "enc_ecg_beat_vid", "enc_resp_vid"), "equal"),
     # the joint model in place of the three separately trained encoders (alone:
