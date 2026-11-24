@@ -19,11 +19,20 @@ Training (``fit``), per fold, on the training people only:
 Score: sum over members of weight x z-normalised score. Fitted members are
 memoised per process (key, training sessions), so several fusions sharing a
 member in one run train it once.
+
+With ``REID_SCORES`` set to a folder, every member's raw score matrices are
+also saved there (``<fusion>_<fold>_val.npz`` at fit, ``..._test.npz`` at
+score), with the index of each probe's true gallery entry and no participant
+id: fusion variants (seed ensembles, normalisations, member sets) can then be
+compared offline, chosen on the inner validation scores. ``<fold>`` is a hash
+of the fold's training sessions, the same for every seed and fusion.
 """
 
 from __future__ import annotations
 
+import hashlib
 import itertools
+import os
 from collections.abc import Callable
 from pathlib import Path
 
@@ -117,11 +126,28 @@ class ScoreFusion:
                 best, best_key = w, key
         return best
 
+    def _dump(self, kind: str, scores: dict, truth: np.ndarray) -> None:
+        folder = os.environ.get("REID_SCORES")
+        if not folder:
+            return
+        Path(folder).mkdir(parents=True, exist_ok=True)
+        arrays = {f"S:{k}": np.asarray(v, np.float32) for k, v in scores.items()}
+        np.savez_compressed(
+            Path(folder) / f"{self.name}_{self.fold_}_{kind}.npz",
+            truth=truth,
+            **arrays,
+        )
+
     def fit(self, train: SessionSet) -> None:
         inner, gal, prb = inner_split(train, self.seed)
+        rows = train.sessions[["participant_id", "day", "task"]].astype(str)
+        key = "|".join(sorted(map(",".join, rows.to_numpy())))
+        self.fold_ = hashlib.sha1(key.encode()).hexdigest()[:10]
         self.models = {k: self._fit(k, train) for k in self.members}
-        Z = [znorm(self._val(k, m, inner, gal, prb)) for k, m in self.models.items()]
+        raw = {k: self._val(k, m, inner, gal, prb) for k, m in self.models.items()}
+        Z = [znorm(v) for v in raw.values()]
         truth = truth_index(gal.pids, prb.pids)
+        self._dump("val", raw, truth)
         single = {}
         for k, z in zip(self.members, Z):
             greater, ties = rank_counts(z, truth)
@@ -142,10 +168,12 @@ class ScoreFusion:
         self.config |= {"weights": weights, "val_member_top1": single, **info}
 
     def score(self, gallery: SessionSet, probe: SessionSet) -> np.ndarray:
-        return sum(
-            w * znorm(m.score(self._view(k, gallery), self._view(k, probe)))
-            for w, (k, m) in zip(self.w_, self.models.items())
-        )
+        raw = {
+            k: m.score(self._view(k, gallery), self._view(k, probe))
+            for k, m in self.models.items()
+        }
+        self._dump("test", raw, truth_index(gallery.pids, probe.pids))
+        return sum(w * znorm(raw[k]) for w, k in zip(self.w_, self.models))
 
     def embed(self, sessions: SessionSet) -> np.ndarray:
         """Concatenated member embeddings x sqrt(weight) (cohort control only)."""

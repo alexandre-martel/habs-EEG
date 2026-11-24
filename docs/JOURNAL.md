@@ -1168,3 +1168,21 @@ métriques ne précisent pas macro ou pondérée (macro ici, classes presque
 en local sur `sample/` (une personne : évaluations sautées, JSON écrit).
 
 **Prochaine étape** : job GPU `ecg_tk_eval`.
+
+## 2026-11-24 — Viser au-delà de 0,95 : scores des membres enregistrés pour fusionner hors ligne
+
+Toutes les pistes restantes pour dépasser `fuse_all5_eq` (0,950) sont des
+façons de combiner les membres : ensemble de graines (la variation entre
+graines, 0,91-0,95 au test, suggère qu'en moyenner plusieurs aide),
+normalisation des scores, rangs plutôt que z-scores, autres jeux de membres
+(LDA à 3 signaux, encodeur EEG pré-entraîné). Plutôt qu'un job GPU par
+variante, `ScoreFusion` enregistre, si `REID_SCORES` est défini (dossier
+`scores/` du job), les matrices de scores brutes de chaque membre en
+validation interne et au test, avec l'indice de la bonne correspondance et
+sans identifiant de participant (`<fusion>_<pli>_{val,test}.npz`, pli = hash
+de l'ensemble d'entraînement, identique entre graines). Les variantes sont
+ensuite comparées hors ligne, choisies sur la validation interne seule, et
+le test n'est lu qu'une fois pour la variante retenue.
+
+Parts `dump_a` (LDA EEG, LDA battement, LDA 3 signaux, 3 encodeurs ; 5
+graines) et `dump_b` (encodeur EEG pré-entraîné `mae`, 5 graines).

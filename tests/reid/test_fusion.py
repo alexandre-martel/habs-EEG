@@ -78,3 +78,29 @@ def test_fusion_weights_follow_the_informative_member(tmp_path) -> None:
     eq = ScoreFusion("e", members, weights="equal", roots=roots)
     eq.fit(train)
     assert set(eq.config["weights"].values()) == {round(1 / 3, 3)}
+
+
+def test_member_scores_are_dumped_without_ids(tmp_path, monkeypatch) -> None:
+    """REID_SCORES: raw member scores + truth index, val at fit and test at
+    score, one fold id shared by every fusion of the same training set."""
+    monkeypatch.setenv("REID_SCORES", str(tmp_path / "scores"))
+    pids = [f"P{i:03d}" for i in range(60)]
+    df = pd.DataFrame(
+        {"participant_id": pids * 2, "day": [1] * 60 + [2] * 60, "task": "rest"}
+    )
+    train = SessionSet(df)
+    members = {"good": (lambda: Stub(2.5, own_val=True, seed=1), "a")}
+    a = ScoreFusion("fa", members, weights="equal", roots={"a": tmp_path})
+    b = ScoreFusion("fb", members, weights="equal", roots={"a": tmp_path})
+    a.fit(train)
+    b.fit(train)
+    assert a.fold_ == b.fold_
+    gal, prb = (train.subset((df.day == d).to_numpy()) for d in (1, 2))
+    S = a.score(gal, prb)
+    val = np.load(tmp_path / "scores" / f"fa_{a.fold_}_val.npz")
+    test = np.load(tmp_path / "scores" / f"fa_{a.fold_}_test.npz")
+    assert set(test.files) == {"truth", "S:good"}
+    assert np.array_equal(test["truth"], np.arange(60))
+    assert np.allclose(znorm(test["S:good"]), S, atol=1e-4)
+    assert val["S:good"].shape == (len(val["truth"]), len(val["truth"]))
+    assert not any(str(v).startswith("P") for v in val["truth"])

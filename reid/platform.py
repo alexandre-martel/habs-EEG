@@ -167,6 +167,7 @@ def _run_groups(
     per_group = (os.cpu_count() or 1) // max(len(job["groups"]), 1)
     env = os.environ | _threads(per_group)
     env |= {"REID_CACHE": str(cache), "REID_RUNS": str(out_dir / "runs")}
+    env |= {"REID_SCORES": str(out_dir / "scores")}
     logs = out_dir / "logs"
     logs.mkdir(parents=True, exist_ok=True)
     procs = []

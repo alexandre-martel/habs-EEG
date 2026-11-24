@@ -101,3 +101,23 @@ parts:
     evaluate: true
     seeds: 10
     draws: 50
+  dump_a:                        # member score matrices (REID_SCORES), 5 seeds,
+    groups:                      # for offline fusion: LDA x3 + 3 encoders
+      - [fuse_all6_eq_s0]
+      - [fuse_all6_eq_s1]
+      - [fuse_all6_eq_s2]
+      - [fuse_all6_eq_s3]
+      - [fuse_all6_eq_s4]
+  dump_b:                        # same for the mae-pretrained EEG encoder
+    caches: [raw, video]
+    groups:
+      - [pretrain, f_eeg_pt_mae_s0, 0]
+      - [pretrain, f_eeg_pt_mae_s0, 1]
+      - [pretrain, f_eeg_pt_mae_s0, 2]
+      - [pretrain, f_eeg_pt_mae_s0, 3]
+      - [pretrain, f_eeg_pt_mae_s0, 4]
+      - [fuse_eeg_pt_s0]
+      - [fuse_eeg_pt_s1]
+      - [fuse_eeg_pt_s2]
+      - [fuse_eeg_pt_s3]
+      - [fuse_eeg_pt_s4]

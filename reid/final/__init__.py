@@ -177,6 +177,20 @@ FUSIONS = {
         ("lda_eeg", "lda_ecg_beat", "enc_eeg_pt", "enc_ecg_beat", "enc_resp"),
         "equal",
     ),
+    # score dumps (REID_SCORES) for offline fusion experiments: every member
+    # once, equal weights; run for 5 seeds (``DUMP_SEEDS``)
+    "fuse_all6_eq": (
+        (
+            "lda_eeg",
+            "lda_ecg_beat",
+            "lda_eeg+ecg_beat+resp",
+            "enc_eeg",
+            "enc_ecg_beat",
+            "enc_resp",
+        ),
+        "equal",
+    ),
+    "fuse_eeg_pt": (("enc_eeg_pt",), "equal"),
     # the joint model in place of the three separately trained encoders (alone:
     # fuse_joint, which shares the fitted joint model with the two below)
     "fuse_joint": (("joint3",), "tuned"),
@@ -202,3 +216,10 @@ def _fusion(name: str, k: int):
 
 
 MODELS |= {f"{n}_s{k}": _fusion(n, k) for n in FUSIONS for k in range(3)}
+#: seeds of the score-dump fusions (seed ensembles are fused offline)
+DUMP_SEEDS = range(5)
+MODELS |= {
+    f"{n}_s{k}": _fusion(n, k)
+    for n in ("fuse_all6_eq", "fuse_eeg_pt")
+    for k in DUMP_SEEDS
+}
