@@ -1127,3 +1127,44 @@ rappelle que ±0,03 entre deux runs isolés n'est pas un signal.
 vidéo, ni la fusion apprise de bout en bout ne battent le modèle final
 actuel, `fuse_all5_eq` (2 LDA + 3 encodeurs entraînés séparément, poids
 égaux) : 0,950 en test sur 3 graines (chance 0,024). Jobs GPU mis en pause.
+
+---
+
+## 2026-11-24 — ECG de Tanasković et al. : protocole d'identification (code)
+
+**Objectif** : reproduire l'identification par forêt aléatoire de Tanasković
+et al. 2025 (arXiv 2510.19775) sur l'ECG du repos, d'abord dans leurs
+conditions (un seul enregistrement par personne), puis entre deux jours.
+
+**Ce qui a été fait** : `scripts/ecg_tanaskovic_eval.py`, lancé par le job
+`ecg_tk_eval` (`reid_job.yaml`) après l'extraction de l'étape précédente
+(un job ne lit pas la sortie d'un autre : l'extraction est refaite, ~2 min).
+Seul un JSON agrégé sort (`out_dir/runs`), sans identifiant.
+
+**Choix et pourquoi** :
+- modèle du papier : `RandomForestClassifier` par défaut (pas de réglage,
+  comme les auteurs), une classe par personne, caractéristiques brutes
+  (intervalles corrigés par Bazett) ;
+- A1 : split aléatoire stratifié 33 % (celui du papier, optimiste car des
+  gabarits voisins tombent des deux côtés) ; A2 : dernier tiers de chaque
+  bloc en test, un gabarit d'écart (contrôle de fuite) ; A3 : yeux fermés →
+  yeux ouverts et inverse (analogue de leur test baseline → colère) ;
+  chaque fois sur le jour 1 et sur le jour 2 séparément ;
+- B : jour 1 → jour 2 et inverse (absent du papier), par gabarit et par
+  séance (probabilités moyennées sur la séance, top-1/top-5/MRR, IC bootstrap
+  sur les personnes) ; B42 : galeries aléatoires de 42 personnes, pour
+  comparer au leaderboard (b1_ecg_beat 0,60, démographie 0,71) ;
+- jeux de caractéristiques : les 16, le sous-ensemble de 8 du papier, et les
+  16 avec amplitudes et pentes divisées par RQ_amp (garde-fou contre un gain
+  d'électrode différent d'un jour à l'autre, variante à nous).
+
+**Différences avec le papier à garder en tête** : leur dérivation II contre
+notre dérivation sous-claviculaire (onde T souvent inversée) ; deux segments
+de 2 min (18 gabarits par personne) contre 30 s + 60 s ici (~3 + 7) ; leurs
+métriques ne précisent pas macro ou pondérée (macro ici, classes presque
+équilibrées).
+
+**Testé** : données synthétiques (60 personnes, deux jours) et job complet
+en local sur `sample/` (une personne : évaluations sautées, JSON écrit).
+
+**Prochaine étape** : job GPU `ecg_tk_eval`.

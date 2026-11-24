@@ -95,3 +95,9 @@ parts:
   ecg_tk_rest:                   # Tanasković et al. 2025 ECG features, every rest
     job: ecg_tanaskovic          # recording of days 1-2; per-participant output in
     days: [1, 2]                 # out_dir/private (kept out of the GitHub artifact)
+  ecg_tk_eval:                   # same extraction, then random-forest identification
+    job: ecg_tanaskovic          # (scripts/ecg_tanaskovic_eval.py): one day (A1-A3)
+    days: [1, 2]                 # and day 1 -> day 2 (B); aggregate JSON in out_dir/runs
+    evaluate: true
+    seeds: 10
+    draws: 50

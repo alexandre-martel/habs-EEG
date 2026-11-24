@@ -305,6 +305,28 @@ def _ecg_tanaskovic(data_dir: Path, out_dir: Path, job: dict, deadline: float) -
     except Exception as err:  # noqa: BLE001 - the summary must not hide the status
         summary["summary_error"] = repr(err)
     print(f"ecg_tanaskovic: {summary}", flush=True)
+
+    # ``evaluate: true``: random-forest identification on these features
+    # (scripts/ecg_tanaskovic_eval.py). Its JSON holds aggregate metrics only,
+    # so it goes to out_dir/runs, which the workflows upload.
+    if job.get("evaluate") and code == 0:
+        runs = out_dir / "runs"
+        runs.mkdir(parents=True, exist_ok=True)
+        stamp = time.strftime("%Y%m%dT%H%M%S")
+        cmd = [sys.executable, str(SCRIPTS / "ecg_tanaskovic_eval.py"),
+               "--features", str(dest / "features.csv"),
+               "--out", str(runs / f"{stamp}_ecg_tanaskovic_rf.json"),
+               "--seeds", str(job.get("seeds", 10)), "--draws", str(job.get("draws", 50))]
+        logs = out_dir / "logs"
+        logs.mkdir(parents=True, exist_ok=True)
+        with (logs / "ecg_tanaskovic_eval.txt").open("w") as log:
+            try:
+                ev = subprocess.run(cmd, cwd=REPO, stdout=log, stderr=subprocess.STDOUT,
+                                    timeout=_remaining(deadline)).returncode
+            except subprocess.TimeoutExpired:
+                ev = "timeout"
+        summary["evaluation"] = "ok" if ev == 0 else f"exit {ev}"
+        print(f"ecg_tanaskovic evaluation: {summary['evaluation']}", flush=True)
     return summary
 
 
