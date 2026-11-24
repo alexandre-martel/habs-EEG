@@ -1278,3 +1278,26 @@ dure ~14 min, contre ~1,5 min de repos.
   `feature_tasks` pour n'extraire les caractéristiques LDA que du repos.
 - Membres `enc_{eeg,ecg_beat,resp}_vid`, part `dump_v` (5 graines), fusion
   hors ligne avec les scores de repos de `dump_a` (mêmes plis, mêmes sondes).
+
+## 2026-11-24 — Vidéo des mêmes séances : 0,976 au test
+
+**Job** `20261124T223621-74a207` (part `dump_v`, 52 min ; extraction brute
+repos + vidéo 240 s ; graine 3 arrêtée à 52 min après 4 plis, donc exclue).
+Encodeurs vidéo seuls, validation interne moyenne par pli : EEG 0,70-0,84,
+respiration 0,64-0,70 (au repos : ~0,45 ; 14 min de respiration au lieu de
+1,5), battement 0,52-0,72. Aucune sonde de test sans vidéo.
+
+Fusion hors ligne avec les scores de repos (`dump_a`, `dump_c`), poids
+égaux, z-score ; validation poolée (165 personnes), test (208, chance 0,024) :
+
+| fusion | validation | MRR | test top-1 [IC 95 %] |
+|---|---|---|---|
+| repos `all5`, ensemble de 10 graines (modèle précédent) | 0,957 | 0,972 | 0,966 [0,938 ; 0,986] |
+| vidéo seule, 3 encodeurs, 4 graines | 0,927 | 0,957 | 0,947 [0,913 ; 0,971] |
+| repos `all5` + EEG vidéo | 0,957 | 0,974 | 0,971 |
+| repos et vidéo moyennés par signal (`all5 x vid`), 4-5 graines | **0,970** | 0,980 | 0,971 [0,947 ; 0,990] |
+| repos `all5` + 3 encodeurs vidéo (8 membres), 4-5 graines | **0,970** | **0,981** | **0,976** [0,952 ; 0,995] |
+
+Choix sur la validation (top-1 puis MRR) : 8 membres. Écart apparié avec le
+modèle précédent : +0,0096 [0,000 ; +0,024], 2 erreurs corrigées, aucune
+créée (5 erreurs sur 208). Hungarian 0,990.

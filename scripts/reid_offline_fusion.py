@@ -143,6 +143,18 @@ def variants(members: set[str], seeds: list[int]) -> dict:
                 e["enc_resp"],
             ]
             out[f"all6 ens{n} +pt slot"] = [*out[f"all6 ens{n}"], pt]
+        # the same encoders on the video of the same sessions (TaskView)
+        v = {x: enc(f"{x}_vid", ks) for x in ("enc_eeg", "enc_ecg_beat", "enc_resp")}
+        if all(v.values()):
+            vid = [v["enc_eeg"], v["enc_ecg_beat"], v["enc_resp"]]
+            out[f"vid3 ens{n}"] = vid
+            out[f"all5+vid3 ens{n}"] = [*out[f"all5 ens{n}"], *vid]
+            out[f"all5+vid eeg ens{n}"] = [*out[f"all5 ens{n}"], v["enc_eeg"]]
+            # rest and video of one signal averaged in one slot
+            out[f"all5 x vid ens{n}"] = [
+                *lda2,
+                *[e[x] + v[x] for x in ("enc_eeg", "enc_ecg_beat", "enc_resp")],
+            ]
     return {k: v for k, v in out.items() if all(v)}
 
 
