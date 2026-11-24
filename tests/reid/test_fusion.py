@@ -104,3 +104,68 @@ def test_member_scores_are_dumped_without_ids(tmp_path, monkeypatch) -> None:
     assert np.allclose(znorm(test["S:good"]), S, atol=1e-4)
     assert val["S:good"].shape == (len(val["truth"]), len(val["truth"]))
     assert not any(str(v).startswith("P") for v in val["truth"])
+
+
+class FakeStore:
+    """Only ``available`` matters to TaskView: video missing for some sessions."""
+
+    def __init__(self, missing) -> None:
+        self.missing = set(missing)
+
+    def available(self, pid, day, task) -> bool:
+        return (pid, day) not in self.missing
+
+
+class TaskStub(Stub):
+    def fit(self, train: SessionSet) -> None:
+        assert set(train.sessions.task) == {"video"}
+        self.seen = train
+        _, gal, prb = inner_split(train, SEED, getattr(self, "val_people", None))
+        self.val_scores_, self.val_pids_ = self.score(gal, prb), (gal.pids, prb.pids)
+
+
+def test_task_view_aligns_with_the_rest_split() -> None:
+    from reid.final.fusion import TaskView
+
+    pids = [f"P{i:03d}" for i in range(100)]
+    df = pd.DataFrame(
+        {"participant_id": pids * 2, "day": [1] * 100 + [2] * 100, "task": "rest"}
+    )
+    missing = {("P003", 2), ("P010", 1), ("P050", 1), ("P050", 2)}
+    train = SessionSet(df, FakeStore(missing))
+    _, gal, prb = inner_split(train, SEED)
+    stub = TaskStub(3.0, own_val=True, seed=4)
+    view = TaskView(lambda: stub, "video")
+    view.fit(train)
+    # trained on the video sessions that exist, never on rest
+    assert len(stub.seen) == 200 - len(missing)
+    # validation: the rest split's people, NaN where a video is missing
+    assert view.val_pids_[0] is gal.pids or np.array_equal(view.val_pids_[0], gal.pids)
+    assert view.val_scores_.shape == (len(prb), len(gal))
+    # people with both video days have scores against every gallery video;
+    # the others (one video day only) are NaN, neutral in the fusion
+    both = [(p, 1) not in missing and (p, 2) not in missing for p in prb.pids]
+    has1 = [(p, 1) not in missing for p in gal.pids]
+    V = view.val_scores_
+    assert np.isfinite(V[np.ix_(both, both)]).all()
+    assert np.isnan(V[~np.array(both)]).all()
+    assert np.isnan(V[:, ~np.array(has1)]).all()
+    # validation people never trained on (inner split imposed)
+    assert not set(stub.val_pids_[0]) - set(gal.pids)
+    day1 = train.subset((df.day == 1).to_numpy())
+    day2 = train.subset((df.day == 2).to_numpy())
+    S = view.score(day1, day2)
+    assert S.shape == (100, 100)
+    assert np.isnan(S[3]).all() and np.isnan(S[:, 10]).all()
+    Z = znorm(S)
+    assert np.isfinite(Z).all() and (Z[3] == 0).all() and (Z[:, 10] == 0).all()
+    keep = np.isfinite(np.diag(S))
+    assert (np.nanargmax(np.where(np.isnan(S), -np.inf, S), 1) == np.arange(100))[
+        keep
+    ].mean() > 0.5
+
+
+def test_znorm_ignores_missing_scores() -> None:
+    S = np.array([[1.0, 2.0, np.nan, 3.0]])
+    Z = znorm(S)
+    assert Z[0, 2] == 0 and np.allclose(Z[0, [0, 1, 3]], znorm(S[:, [0, 1, 3]])[0])

@@ -1,7 +1,10 @@
 """Light raw-signal cache for the final model: ``<out>/<task>/<PID>_day-<d>.npz``.
 
 Each kept sub-segment ``k`` (eyes closed / eyes open rest, eyes-open blocks of
-the artefact task; the 5 s instructed actions are artefacts and are left out):
+the artefact task; the 5 s instructed actions are artefacts and are left out;
+for the emotion-video task, one ``video`` segment from the first clip's onset
+to the last clip's end, ~14 min with the ratings in between, read in chunks
+of ``CHUNK_S``):
 
 ======================  =====================================================
 seg_condition, ...      condition, start and duration (s) of each sub-segment
@@ -17,12 +20,14 @@ ch_names, eeg_rate,     channel order and sampling rates
 resp_rate, version
 ======================  =====================================================
 
-About 1.5 MB per 90 s rest session (cache/ is never committed).
+About 1.5 MB per 90 s rest session, ~14 MB per video session (cache/ is
+never committed).
 """
 
 from __future__ import annotations
 
 import csv
+import itertools
 import json
 import traceback
 import warnings
@@ -44,6 +49,7 @@ EEG_RATE = 128  # Hz: keeps 1-45 Hz with margin, 8x smaller than 1 kHz
 RESP_RATE = 25  # Hz: breathing is < 1 Hz, 25 Hz keeps the waveform shape
 RESP_PAD_S = 10.0
 KEEP = ("rest_ec", "rest_eo", "art_eo")
+CHUNK_S = 60.0  # EEG of long segments is read and filtered by chunks
 F16_MAX = 6.0e4  # µV; such spikes fail the peak-to-peak test anyway
 
 
@@ -62,6 +68,12 @@ def _read(rec: Recording, modality: str, start: float, stop: float, pad_s: float
 
 
 def eeg_segment(rec: Recording, start: float, stop: float) -> np.ndarray:
+    if stop - start > 1.5 * CHUNK_S:  # long: chunks, each filtered with context
+        edges = np.append(np.arange(start, stop, CHUNK_S), stop)
+        edges = edges[np.r_[np.diff(edges) > 0.5, True]]  # no sliver at the end
+        return np.concatenate(
+            [eeg_segment(rec, a, b) for a, b in itertools.pairwise(edges)], axis=-1
+        )
     x, pad = _read(rec, "eeg", start, stop, PAD_S)
     y = preprocess.clean_window(x * 1e6, rec.sfreq, pad)  # V -> µV
     return resample(y, rec.sfreq, EEG_RATE).astype(np.float32)
@@ -113,6 +125,12 @@ def extract_raw_session(bdf: Path, meta: dict, task: str) -> dict:
     """Cached raw signals of one task recording (``task`` as in file names)."""
     rec = open_recording(bdf)
     segs = [s for s in sub_segments(meta, task) if s[0] in KEEP]
+    if task == "emotion-video":  # the clips and the ratings between them
+        clips = sub_segments(meta, task)
+        if clips:
+            first = min(c[2] for c in clips)
+            last = max(c[2] + c[3] for c in clips)
+            segs = [("video", 0, first, last - first)]
     if not segs:
         raise ValueError("no kept sub-segment inside the recording")
     out = {

@@ -53,20 +53,49 @@ def _device(name: str) -> str:
     return "mps" if torch.backends.mps.is_available() else "cpu"
 
 
-def inner_split(train: SessionSet, seed: int):
+def inner_split(train: SessionSet, seed: int, val_people=None):
     """(inner training set, validation gallery day 1, validation probe day 2):
-    identical to the LDA's inner split for the same seed."""
+    identical to the LDA's inner split for the same seed. ``val_people``
+    imposes the validation people instead (those of another task's split, so
+    that members of several tasks share one validation: ``TaskView``)."""
     df = train.sessions
     both = df.groupby("participant_id").day.agg(lambda d: {1, 2} <= set(d))
     pool = np.array(sorted(both.index[both]))
-    rng = np.random.default_rng(seed)
-    val = set(rng.choice(pool, max(len(pool) // 5, 2), replace=False))
+    if val_people is not None:
+        val = set(pool) & set(val_people)
+    else:
+        rng = np.random.default_rng(seed)
+        val = set(rng.choice(pool, max(len(pool) // 5, 2), replace=False))
     in_val = df.participant_id.isin(val)
     return (
         train.subset(~in_val.to_numpy()),
         train.subset((in_val & (df.day == 1)).to_numpy()),
         train.subset((in_val & (df.day == 2)).to_numpy()),
     )
+
+
+_POOLS: dict = {}
+
+
+def _pool(cropper, conditions, sessions: SessionSet, i: int):
+    """Crop pool of session ``i``, memoised per process (finding the clean
+    crops of a 14 min video session takes ~0.5 s, x 400 sessions x 5 folds)."""
+    row = sessions.sessions.iloc[i]
+    root = getattr(sessions.store, "root", None)
+    key = (
+        str(root),
+        row.participant_id,
+        int(row.day),
+        row.task,
+        tuple(conditions),
+        type(cropper).__name__,
+        tuple(sorted(vars(cropper).items())),
+    )
+    if root is None:
+        return cropper.prepare(sessions.load(i), conditions)
+    if key not in _POOLS:
+        _POOLS[key] = cropper.prepare(sessions.load(i), conditions)
+    return _POOLS[key]
 
 
 class ContrastiveModel:
@@ -132,7 +161,10 @@ class ContrastiveModel:
             and sessions.sessions.part.notna().any()
         ):
             raise ValueError("window selection (part) is not supported on raw crops")
-        return [self.cropper.prepare(f, self.conditions) for f in sessions]
+        return [
+            _pool(self.cropper, self.conditions, sessions, i)
+            for i in range(len(sessions))
+        ]
 
     def _batch(self, rng) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Crops, person codes and days of one training batch."""
@@ -274,7 +306,9 @@ class ContrastiveModel:
         (as the LDA is refitted on everyone once its dimension is chosen)."""
         start = time.time()
         rng = np.random.default_rng(self.seed)
-        inner, gal, prb = inner_split(train, self.split_seed)
+        inner, gal, prb = inner_split(
+            train, self.split_seed, getattr(self, "val_people", None)
+        )
         if self.pretrain:
             from reid.final.pretrain import pretrained
 

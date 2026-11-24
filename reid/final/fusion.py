@@ -48,10 +48,19 @@ _FITTED: dict = {}
 
 
 def znorm(S: np.ndarray) -> np.ndarray:
-    """Per-probe z-score over the gallery (NaN -> 0; a constant row -> 0)."""
-    S = np.nan_to_num(np.asarray(S, dtype=float))
-    sd = S.std(axis=1, keepdims=True)
-    return np.where(sd > 1e-12, (S - S.mean(axis=1, keepdims=True)) / sd, 0.0)
+    """Per-probe z-score over the gallery; missing scores (NaN: a session
+    without this member's data) are left out of the mean and spread, then
+    set to 0, the neutral value; a constant or empty row -> 0."""
+    S = np.asarray(S, dtype=float)
+    if np.isfinite(S).all():
+        sd = S.std(axis=1, keepdims=True)
+        return np.where(sd > 1e-12, (S - S.mean(axis=1, keepdims=True)) / sd, 0.0)
+    ok = np.isfinite(S)
+    n = np.maximum(ok.sum(axis=1, keepdims=True), 1)
+    mean = np.where(ok, S, 0.0).sum(axis=1, keepdims=True) / n
+    sd = np.sqrt(np.where(ok, (S - mean) ** 2, 0.0).sum(axis=1, keepdims=True) / n)
+    Z = np.where(ok & (sd > 1e-12), (S - mean) / np.where(sd > 1e-12, sd, 1.0), 0.0)
+    return np.nan_to_num(Z)
 
 
 def simplex(m: int, step: float) -> np.ndarray:
@@ -183,3 +192,74 @@ class ScoreFusion:
             e /= np.maximum(np.linalg.norm(e, axis=1, keepdims=True), 1e-12)
             parts.append(np.sqrt(w) * e)
         return np.concatenate(parts, axis=1)
+
+
+class TaskView:
+    """A member that reads another task of the same sessions (e.g. the video
+    recorded the same day as the rest): the fusion still sees one row per rest
+    session, and this member scores the session's ``task`` recording instead.
+
+    * fit: on the training people's ``task`` recordings, with the inner
+      validation people of the rest split (``val_people``), so that its
+      validation scores line up with the other members';
+    * score / validation scores: NaN where a session has no ``task``
+      recording (neutral 0 after ``znorm``).
+    """
+
+    def __init__(self, factory: Callable[[], object], task: str, seed: int = SEED):
+        self.factory, self.task, self.seed = factory, task, seed
+
+    def _map(self, sessions: SessionSet) -> tuple[SessionSet, np.ndarray]:
+        df = sessions.sessions.copy()
+        df["task"] = self.task
+        keep = np.array(
+            [
+                sessions.store.available(pid, int(day), self.task)
+                for pid, day in zip(df.participant_id, df.day)
+            ],
+            dtype=bool,
+        )
+        view = SessionSet(df[keep].reset_index(drop=True), sessions.store)
+        return view, np.flatnonzero(keep)
+
+    def _expand(self, S, rows, cols, shape) -> np.ndarray:
+        out = np.full(shape, np.nan)
+        if len(rows) and len(cols):
+            out[np.ix_(rows, cols)] = S
+        return out
+
+    def fit(self, train: SessionSet) -> None:
+        _, gal, prb = inner_split(train, self.seed)
+        view, _ = self._map(train)
+        self.model = self.factory()
+        self.model.val_people = set(gal.pids)
+        self.model.fit(view)
+        config = getattr(self.model, "config", {})
+        self.config = {f"{self.task}_{k}": v for k, v in config.items()}
+        # validation scores on the rest split's validation sessions
+        vg, vp = self.model.val_pids_
+        rows = [i for i, p in enumerate(prb.pids) if p in set(vp)]
+        cols = [j for j, p in enumerate(gal.pids) if p in set(vg)]
+        order_p = {p: k for k, p in enumerate(vp)}
+        order_g = {p: k for k, p in enumerate(vg)}
+        S = self.model.val_scores_[
+            np.ix_(
+                [order_p[prb.pids[i]] for i in rows],
+                [order_g[gal.pids[j]] for j in cols],
+            )
+        ]
+        self.val_scores_ = self._expand(S, rows, cols, (len(prb), len(gal)))
+        self.val_pids_ = (gal.pids, prb.pids)
+
+    def score(self, gallery: SessionSet, probe: SessionSet) -> np.ndarray:
+        g, gi = self._map(gallery)
+        p, pi = self._map(probe)
+        S = self.model.score(g, p) if len(g) and len(p) else np.empty((0, 0))
+        return self._expand(S, pi, gi, (len(probe), len(gallery)))
+
+    def embed(self, sessions: SessionSet) -> np.ndarray:
+        v, rows = self._map(sessions)
+        e = np.asarray(self.model.embed(v), float)
+        out = np.full((len(sessions), e.shape[1]), np.nan)
+        out[rows] = e
+        return out

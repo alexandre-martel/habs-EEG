@@ -150,7 +150,31 @@ def _members(k: int) -> dict:
         "enc_ecg_beat": (_factory("ecg_beat", SEED + k, tag="_refit", **split), "raw"),
         "enc_resp": (_factory("resp", SEED + k, tag="_refit", **split), "raw"),
         "joint3": (_joint(k), "raw"),
+        # the same encoders trained and scored on the video task of the same
+        # sessions (~14 min of signal against ~1.5 min of rest): extra data
+        # per session, fused with the rest members (TaskView)
+        **{f"enc_{m}_vid": (_video(m, k), "raw") for m in ("eeg", "ecg_beat", "resp")},
     }
+
+
+def _video(modality: str, k: int):
+    kw = EEG_POOL if modality == "eeg" else {}
+
+    def make():
+        from reid.final.fusion import TaskView
+
+        enc = _factory(
+            modality,
+            SEED + k,
+            tag="_vid_refit",
+            conditions=("video",),
+            split_seed=SEED,
+            refit=True,
+            **kw,
+        )
+        return TaskView(enc, "video")
+
+    return make
 
 
 #: name -> (members, weights). "tuned": simplex weights on inner validation.
@@ -191,6 +215,8 @@ FUSIONS = {
         "equal",
     ),
     "fuse_eeg_pt": (("enc_eeg_pt",), "equal"),
+    # video members only (score dumps; fused offline with the rest members)
+    "fuse_vid3_eq": (("enc_eeg_vid", "enc_ecg_beat_vid", "enc_resp_vid"), "equal"),
     # the joint model in place of the three separately trained encoders (alone:
     # fuse_joint, which shares the fitted joint model with the two below)
     "fuse_joint": (("joint3",), "tuned"),
@@ -220,6 +246,6 @@ MODELS |= {f"{n}_s{k}": _fusion(n, k) for n in FUSIONS for k in range(3)}
 DUMP_SEEDS = range(10)
 MODELS |= {
     f"{n}_s{k}": _fusion(n, k)
-    for n in ("fuse_all6_eq", "fuse_eeg_pt")
+    for n in ("fuse_all6_eq", "fuse_eeg_pt", "fuse_vid3_eq")
     for k in DUMP_SEEDS
 }

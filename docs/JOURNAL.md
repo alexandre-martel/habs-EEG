@@ -1252,3 +1252,29 @@ tronquée, médiane) : rien sur l'ensemble, médiane nettement moins bonne.
 retenues, la plus stable), test **0,966** [0,938 ; 0,986], +0,014 sur une
 graine seule. Reproductible hors ligne depuis les scores commités
 (`results/gpu/20261124T*/scores`, `scripts/reid_offline_fusion.py`).
+
+## 2026-11-24 — Données complémentaires : la vidéo des mêmes séances (code)
+
+Autorisé : utiliser, pour identifier une séance de repos, les autres tâches
+enregistrées le même jour. La tâche artefact n'existe presque pas au jour 2
+(32 séances sur 276, contre 190 au jour 1) : inutile pour jour 1 → jour 2.
+La vidéo existe aux deux jours pour presque tout le monde (292 / 276) et
+dure ~14 min, contre ~1,5 min de repos.
+
+- `reid/final/raw.py` : la tâche vidéo dans le cache brut, au même format
+  que le repos (EEG, battements ECG, respiration), un seul segment `video` du
+  début du premier extrait à la fin du dernier (notations comprises), EEG lu
+  et filtré par tranches de 60 s. P001 jour 1 : 14,3 min, 1 243 battements,
+  1,5 s d'extraction.
+- `TaskView` (`reid/final/fusion.py`) : membre de fusion qui lit la vidéo de
+  la même séance ; la fusion garde une ligne par séance de repos, donc les
+  mêmes 208 sondes de test. Entraîné sur les vidéos des personnes
+  d'entraînement avec les personnes de validation du découpage du repos
+  (`inner_split(..., val_people)`), pour que sa validation soit alignée sur
+  celle des autres membres ; une séance sans vidéo donne des scores
+  manquants, neutres après `znorm` (qui ignore désormais les manquants au
+  lieu de les compter comme 0).
+- Poules d'extraits mémoïsées par processus (`_pool`), plateforme :
+  `feature_tasks` pour n'extraire les caractéristiques LDA que du repos.
+- Membres `enc_{eeg,ecg_beat,resp}_vid`, part `dump_v` (5 graines), fusion
+  hors ligne avec les scores de repos de `dump_a` (mêmes plis, mêmes sondes).

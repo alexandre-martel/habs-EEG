@@ -128,3 +128,12 @@ parts:
       - [fuse_all6_eq_s7]
       - [fuse_all6_eq_s8]
       - [fuse_all6_eq_s9]
+  dump_v:                        # the 3 encoders on the video task of the same
+    tasks: [rest, video]         # sessions (raw cache of both tasks), 5 seeds,
+    caches: [raw]                # score dumps fused offline with dump_a
+    groups:
+      - [fuse_vid3_eq_s0]
+      - [fuse_vid3_eq_s1]
+      - [fuse_vid3_eq_s2]
+      - [fuse_vid3_eq_s3]
+      - [fuse_vid3_eq_s4]

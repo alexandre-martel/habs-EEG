@@ -98,7 +98,11 @@ def _extract(data_dir: Path, cache: Path, logs: Path, job: dict, deadline: float
     n = int(job.get("workers") or os.cpu_count() or 1)
     caches = job.get("caches", ["features", "raw"])
     logs.mkdir(parents=True, exist_ok=True)
-    jobs = [(t, k) for t in job["tasks"] for k in ("features", "raw") if k in caches]
+    # feature cache (LDA members) for ``feature_tasks`` only (default: tasks):
+    # the raw cache of a long task (video) is cheap, its features are not
+    feature_tasks = job.get("feature_tasks", job["tasks"])
+    jobs = [(t, "features") for t in feature_tasks if "features" in caches]
+    jobs += [(t, "raw") for t in job["tasks"] if "raw" in caches]
     jobs += [("video", "video")] if "video" in caches else []
     counts, problems, futures = {}, [], {}
     with ThreadPoolExecutor(n) as pool:
