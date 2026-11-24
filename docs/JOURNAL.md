@@ -1186,3 +1186,37 @@ le test n'est lu qu'une fois pour la variante retenue.
 
 Parts `dump_a` (LDA EEG, LDA battement, LDA 3 signaux, 3 encodeurs ; 5
 graines) et `dump_b` (encodeur EEG pré-entraîné `mae`, 5 graines).
+
+## 2026-11-24 — Ensemble de graines : 0,966 au test (premier gain au-delà de 0,95)
+
+**Job** `20261124T134720-d511ae` (part `dump_a`, 37 min, codes 0) : LDA EEG,
+LDA battement, LDA 3 signaux et les 3 encodeurs pour 5 graines, scores
+enregistrés (`results/gpu/<job>/scores/`, 1,7 Mo, sans identifiant).
+Variantes comparées hors ligne (`scripts/reid_offline_fusion.py`,
+tableau complet : `offline_fusion.json`). Validation interne poolée sur les
+5 plis (165 personnes ; 1 personne = 0,006) ; test : 208 personnes, chance
+0,024.
+
+| fusion (poids égaux, z-score par sonde) | validation top-1 | MRR | test top-1 [IC 95 %] |
+|---|---|---|---|
+| `all5`, une graine (moyenne des 5 graines) | 0,945 | 0,963 | 0,954 (9-11 erreurs sur 208) |
+| `all5`, encodeurs moyennés sur 3 graines | **0,957** | 0,971 | **0,966** [0,938 ; 0,986] (7 erreurs) |
+| `all5`, encodeurs moyennés sur 5 graines | 0,951 | 0,969 | 0,966 [0,938 ; 0,986] |
+| + LDA 3 signaux (6e membre), 5 graines | 0,927 | 0,955 | 0,966 |
+| 3 encodeurs seuls, 5 graines | 0,939 | 0,958 | 0,933 |
+| normalisation par rangs (au lieu du z-score) | 0,88-0,92 | – | 0,86-0,91 |
+
+Choix sur la validation : ensemble de graines, poids égaux, z-score. Écart
+apparié au test avec la moyenne des graines seules : +0,0125 [+0,005 ;
++0,021] (bootstrap sur les personnes) : petit mais net. La LDA 3 signaux
+n'ajoute rien ; le rang perd l'information d'écart ; des poids réglés sur la
+validation poolée y gagnent ~0,006-0,012 (biaisé) sans gain au test.
+
+Normalisation « dual » (z-score aussi par entrée de galerie sur toutes les
+sondes) : +0,006-0,009 en validation, même test ; transductive (elle utilise
+les autres sondes), donc écartée du modèle principal, comme le Hungarian
+(0,976-0,990, rapporté à part).
+
+**Suite** : `dump_b` (encodeur EEG pré-entraîné, 5 graines) ajouté à
+l'ensemble EEG, et un modèle enregistrable `fuse_all5_ens` (ensemble de
+graines dans `ScoreFusion`).
