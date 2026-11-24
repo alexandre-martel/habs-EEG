@@ -178,7 +178,7 @@ FUSIONS = {
         "equal",
     ),
     # score dumps (REID_SCORES) for offline fusion experiments: every member
-    # once, equal weights; run for 5 seeds (``DUMP_SEEDS``)
+    # once, equal weights; run for 10 seeds (``DUMP_SEEDS``)
     "fuse_all6_eq": (
         (
             "lda_eeg",
@@ -217,7 +217,7 @@ def _fusion(name: str, k: int):
 
 MODELS |= {f"{n}_s{k}": _fusion(n, k) for n in FUSIONS for k in range(3)}
 #: seeds of the score-dump fusions (seed ensembles are fused offline)
-DUMP_SEEDS = range(5)
+DUMP_SEEDS = range(10)
 MODELS |= {
     f"{n}_s{k}": _fusion(n, k)
     for n in ("fuse_all6_eq", "fuse_eeg_pt")

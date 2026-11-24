@@ -126,7 +126,7 @@ def variants(members: set[str], seeds: list[int]) -> dict:
             enc("enc_ecg_beat", [k]),
             enc("enc_resp", [k]),
         ]
-    for n in (3, 5):
+    for n in (3, 5, 10):
         ks = seeds[:n]
         if len(ks) < n:
             continue

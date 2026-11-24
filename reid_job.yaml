@@ -121,3 +121,10 @@ parts:
       - [fuse_eeg_pt_s2]
       - [fuse_eeg_pt_s3]
       - [fuse_eeg_pt_s4]
+  dump_c:                        # dump_a for seeds 5-9 (seed ensembles of 10)
+    groups:
+      - [fuse_all6_eq_s5]
+      - [fuse_all6_eq_s6]
+      - [fuse_all6_eq_s7]
+      - [fuse_all6_eq_s8]
+      - [fuse_all6_eq_s9]
