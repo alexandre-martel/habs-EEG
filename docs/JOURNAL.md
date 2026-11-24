@@ -1220,3 +1220,35 @@ les autres sondes), donc écartée du modèle principal, comme le Hungarian
 **Suite** : `dump_b` (encodeur EEG pré-entraîné, 5 graines) ajouté à
 l'ensemble EEG, et un modèle enregistrable `fuse_all5_ens` (ensemble de
 graines dans `ScoreFusion`).
+
+## 2026-11-24 — Ensemble de graines : plafond à 0,966 ; l'encodeur pré-entraîné n'aide pas
+
+**Jobs** `20261124T134720-dbc023` (`dump_b` : encodeur EEG pré-entraîné
+`mae`, 5 graines, 29 min) et `20261124T143623-24b2b5` (`dump_c` : `dump_a`
+pour les graines 5-9, 38 min), codes 0. Fusion hors ligne, poids égaux,
+z-score ; validation interne poolée (165 personnes), test (208, chance 0,024) :
+
+| fusion | validation | test top-1 [IC 95 %] |
+|---|---|---|
+| `all5`, une graine (moyenne de 10 graines) | 0,947 | 0,952 (0,942-0,962 selon la graine) |
+| `all5`, ensemble de 3 graines | **0,957** | **0,966** [0,938 ; 0,986] |
+| `all5`, ensemble de 5 graines | 0,951 | 0,966 |
+| `all5`, ensemble de 10 graines | **0,957** | 0,966 |
+| `all5`, 3 graines, EEG + EEG pré-entraîné dans le même membre | 0,945 | 0,971 [0,947 ; 0,990] |
+| `all5`, 5 graines, EEG + EEG pré-entraîné | 0,945 | 0,966 |
+| 3 encodeurs seuls, 10 graines | 0,939 | 0,947 |
+
+Le gain de l'ensemble est acquis dès 3 graines et plafonne (7 erreurs sur
+208 à 3, 5 et 10 graines) : la variance entre graines est absorbée, et les
+erreurs restantes sont des personnes dont un ou deux signaux changent d'un
+jour à l'autre (ex. : le bon candidat classé 38e/41 par les deux membres ECG
+mais 1er par l'EEG et la respiration). Ajouter l'encodeur pré-entraîné baisse
+la validation (0,945) : écarté (le 0,971 au test d'une variante non choisie
+n'est pas retenu). Règles de fusion robustes (z-scores écrêtés, moyenne
+tronquée, médiane) : rien sur l'ensemble, médiane nettement moins bonne.
+
+**Modèle final retenu** : `all5` avec encodeurs moyennés sur les graines
+(choix sur validation : 3 et 10 graines à égalité, 0,957 ; 10 graines
+retenues, la plus stable), test **0,966** [0,938 ; 0,986], +0,014 sur une
+graine seule. Reproductible hors ligne depuis les scores commités
+(`results/gpu/20261124T*/scores`, `scripts/reid_offline_fusion.py`).

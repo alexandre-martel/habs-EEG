@@ -1,0 +1,109 @@
+{
+ "job": {
+  "job": "final",
+  "tasks": [
+   "rest"
+  ],
+  "modalities": [
+   "eeg",
+   "ecg",
+   "resp"
+  ],
+  "shard": "0/1",
+  "workers": 0,
+  "deadline_min": 52,
+  "eval_task": "rest",
+  "scenarios": [
+   "d1_to_d2"
+  ],
+  "part": "dump_b",
+  "caches": [
+   "raw",
+   "video"
+  ],
+  "groups": [
+   [
+    "pretrain",
+    "f_eeg_pt_mae_s0",
+    0
+   ],
+   [
+    "pretrain",
+    "f_eeg_pt_mae_s0",
+    1
+   ],
+   [
+    "pretrain",
+    "f_eeg_pt_mae_s0",
+    2
+   ],
+   [
+    "pretrain",
+    "f_eeg_pt_mae_s0",
+    3
+   ],
+   [
+    "pretrain",
+    "f_eeg_pt_mae_s0",
+    4
+   ],
+   [
+    "fuse_eeg_pt_s0"
+   ],
+   [
+    "fuse_eeg_pt_s1"
+   ],
+   [
+    "fuse_eeg_pt_s2"
+   ],
+   [
+    "fuse_eeg_pt_s3"
+   ],
+   [
+    "fuse_eeg_pt_s4"
+   ]
+  ]
+ },
+ "hardware": {
+  "cpus": 40,
+  "python": "3.12.3",
+  "ram_gb": 337.9,
+  "tmp_free_gb": 25.5,
+  "torch": "2.14.1+cu126",
+  "cuda": true,
+  "gpu": "NVIDIA H100 NVL"
+ },
+ "timings_s": {
+  "extraction": 178.0,
+  "total": 1714.7
+ },
+ "extraction": {
+  "rest": {
+   "raw": {
+    "done": 590,
+    "skipped": 0,
+    "failed": 0
+   }
+  },
+  "video": {
+   "video": {
+    "done": 596,
+    "skipped": 0,
+    "failed": 0
+   }
+  }
+ },
+ "extraction_problems": [],
+ "exit_codes": [
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0
+ ]
+}
