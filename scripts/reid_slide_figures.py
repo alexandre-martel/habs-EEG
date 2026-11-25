@@ -703,7 +703,8 @@ def fig_absent(data, slots) -> None:
     ax.set_xlabel("meilleur score de la galerie (z)")
     ax.set_ylabel("personnes")
     ax.set_title(f"Critère 1 : le meilleur score (AUC {res['top']['auc_test']:.2f})")
-    ax.legend(loc="upper right", fontsize=9)
+    ax.set_xlim(0.4, 4.8)
+    ax.legend(loc="lower right", fontsize=9, bbox_to_anchor=(1, 0.25))
     k = np.arange(len(slots) + 1)
     w = 0.4
     bx.bar(
