@@ -65,6 +65,11 @@ all16_qday   each feature replaced by its percentile rank per day (robust to
              outliers and to non-linear day effects); B only, as above.
 all16_rel_zday  both.
 rr_only      RR interval alone (heart rate): what heart rate alone gives.
+beat         the whole template (-250/+500 ms), 75 points (one every 10 ms),
+             raw amplitudes: the full beat shape, same forest.
+beat_z       the same, each template centred and scaled by its own standard
+             deviation (shape only, amplitude removed; as b1_ecg_beat).
+beat_z_all16 beat_z and the 16 features together.
 """
 
 from __future__ import annotations
@@ -89,7 +94,7 @@ from sklearn.preprocessing import StandardScaler
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
-from reid.features.ecg_tanaskovic import NAMES  # noqa: E402
+from reid.features.ecg_tanaskovic import BEAT_NAMES, NAMES  # noqa: E402
 
 EO, EC = 10002, 10004
 PAPER8 = ("ECGQRScrest", "QRS_int", "QR_slope", "RQ_amp", "RS_amp", "RS_slope",
@@ -109,8 +114,13 @@ FEATURES = {
     "all16_rel_zday": [c + "_zd" for c in ALL16_REL],
     "all16_qday": [c + "_qd" for c in ALL16],
     "rr_only": ["RR"],
+    "beat": list(BEAT_NAMES),
+    "beat_z": [c + "_z" for c in BEAT_NAMES],
+    "beat_z_all16": [c + "_z" for c in BEAT_NAMES] + ALL16,
 }
-ONE_DAY_SETS = ("all16", "paper8", "all16_rel", "rr_only")  # zday == raw on one day
+ONE_DAY_SETS = ("all16", "paper8", "all16_rel", "rr_only",  # zday == raw on one day
+                "beat", "beat_z", "beat_z_all16")
+C_SETS = ("all16", "paper8", "beat", "beat_z", "beat_z_all16")
 
 
 ANG = 1  # segment code of the anger video templates
@@ -140,6 +150,11 @@ def load(path: Path, anger: Path | None = None) -> pd.DataFrame:
         g = f.groupby(by)[c]
         f[c + "_zd"] = (f[c] - g.transform("mean")) / g.transform("std")
         f[c + "_qd"] = g.rank(pct=True)
+    if set(BEAT_NAMES) <= set(f.columns):  # full beat shape (newer extractions)
+        b = f[list(BEAT_NAMES)].to_numpy(dtype=float)
+        bz = (b - b.mean(axis=1, keepdims=True)) / (b.std(axis=1, keepdims=True) + 1e-12)
+        f = pd.concat([f, pd.DataFrame(bz, index=f.index,
+                                       columns=[c + "_z" for c in BEAT_NAMES])], axis=1)
     f["pid"] = pd.factorize(f.participant_id)[0]  # identifiers never leave this script
     return f
 
@@ -440,6 +455,9 @@ def main() -> None:
     two_days = (f.groupby("pid").day.nunique() == 2).sum() >= 2
     for name in a.sets:
         cols = FEATURES[name]
+        if not set(cols) <= set(full.columns):  # e.g. beat sets on an older features.csv
+            print(f"{name}: columns missing, skipped", flush=True)
+            continue
         res = {}
         if name in ONE_DAY_SETS:
             for day in sorted(f.day.unique()):
@@ -455,7 +473,7 @@ def main() -> None:
                       f"A2_strict {res[f'A2_strict_day{day}']['accuracy']:.3f} "
                       f"A3 eo->ec {res[f'A3_day{day}']['eo_to_ec']['accuracy']:.3f}",
                       flush=True)
-                if name in ("all16", "paper8") and (one_full := full[(full.day == day)]
+                if name in C_SETS and (one_full := full[(full.day == day)]
                                                     ).segment.eq(ANG).any():
                     res[f"C_day{day}"] = c_protocols(one_full, cols, seeds)
                     c = res[f"C_day{day}"]

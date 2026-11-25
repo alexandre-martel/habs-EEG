@@ -201,6 +201,18 @@ def template_features(t: np.ndarray, f: dict, rr_s: float, fs: float) -> dict:
     }
 
 
+BEAT_POINTS = 75  # template waveform resampled to one point every 10 ms
+BEAT_NAMES = tuple(f"beat_{i:02d}" for i in range(BEAT_POINTS))
+
+
+def beat_columns(tpl: np.ndarray) -> dict:
+    """The whole template (-250/+500 ms around R), resampled to BEAT_POINTS
+    points, in the stored ECG units: the full beat shape, for comparison with
+    the 16 fiducial features."""
+    v = np.interp(np.linspace(0, len(tpl) - 1, BEAT_POINTS), np.arange(len(tpl)), tpl)
+    return dict(zip(BEAT_NAMES, v.tolist()))
+
+
 def extract(x: np.ndarray, fs: float, segments: list[tuple[str, int, int]]):
     """Filter and detect on the whole recording, then one row per template of
     each (name, start, stop) segment. Returns (rows, details) where details
@@ -215,6 +227,7 @@ def extract(x: np.ndarray, fs: float, segments: list[tuple[str, int, int]]):
                    "fiducials_ok": f is not None,
                    "T_polarity": f["T_polarity"] if f else np.nan}
             row |= template_features(tpl, f, rr, fs) if f else dict.fromkeys(NAMES, np.nan)
+            row |= beat_columns(tpl)
             rows.append(row)
             details.append((name, k, tpl, f))
     return rows, details, xf, peaks

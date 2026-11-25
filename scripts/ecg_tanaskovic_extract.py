@@ -6,7 +6,8 @@ Reads CURATED/P*/P*_day-<d>_task-resting-state_multimodal.bdf (ECG channel
 only), and writes one row per 10-beat template of the rest blocks 10002 and
 10004 (reid.features.ecg_tanaskovic) to OUT_DIR/features.csv, with
 participant_id, day, block, template index, time of its first beat, T
-polarity and the 16 features. Files that cannot be processed go to
+polarity, the 16 features and the template resampled to 75 points
+(beat_00..beat_74, one every 10 ms). Files that cannot be processed go to
 OUT_DIR/failures.csv.
 
 With --task anger: one template per anger video trial (10 s) of the
@@ -102,6 +103,7 @@ def one_anger(bdf: Path) -> list[dict]:
         f = tk.fiducials(tpl, fs)
         row |= {"fiducials_ok": f is not None, "T_polarity": f["T_polarity"] if f else np.nan}
         row |= tk.template_features(tpl, f, rr, fs) if f else dict.fromkeys(tk.NAMES, np.nan)
+        row |= tk.beat_columns(tpl)
         rows.append(row)
     return rows
 

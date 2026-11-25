@@ -1454,3 +1454,25 @@ internes : étiquettes mélangées, RR seul, `B_folds` (galeries = plis de
 - normalisation par rang dans chaque jour (`all16_qday`), pour B.
 Testé sur données synthétiques et sur un faux enregistrement vidéo fait du
 BDF de repos de P001.
+
+---
+
+## 2026-11-26 — ECG de Tanasković : colère, normalisations, et forme complète du battement (code)
+
+**Job** `20261125T210820-71e09b` (part `ecg_tk_eval`, 13 min, commit
+`5a5014d`), résultats dans `results/gpu/`. Colère : 2 208 gabarits valides,
+547 séances. Forêt, 16 caractéristiques : A2_strict 0,87 (A1 0,88) ; repos +
+colère mélangés 0,86 ; repos → colère 0,64 (jour 1) ; jour 1 → jour 2 sur
+les plis du leaderboard 0,31 (forêt) et 0,31 (LDA) ; meilleure variante :
+rangs par jour + LDA 0,41 [0,35-0,48] ; z-score par jour + forêt 0,06 ;
+étiquettes mélangées 0,010 (hasard 0,005). Lecture : la perte entre jours
+vient des caractéristiques, pas du classifieur ; l'effet de la colère est
+confondu avec le temps écoulé et l'activité.
+
+**Ajout** : la forme complète du gabarit (-250/+500 ms, 75 points, un toutes
+les 10 ms) est maintenant écrite par l'extraction (`beat_00`..`beat_74`,
+repos et colère), et évaluée avec la même forêt : `beat` (amplitudes
+brutes), `beat_z` (chaque gabarit centré-réduit : la forme seule, comme
+`b1_ecg_beat`), `beat_z_all16` (forme + 16 caractéristiques). Mêmes
+protocoles A, C, B, B_folds, LDA_folds. Testé sur données synthétiques et
+sur le faux enregistrement vidéo (P001).
