@@ -99,6 +99,7 @@ parts:
     job: ecg_tanaskovic          # (scripts/ecg_tanaskovic_eval.py): one day (A1-A3)
     days: [1, 2]                 # and day 1 -> day 2 (B); aggregate JSON in out_dir/runs
     evaluate: true
+    anger: true                  # + one template per anger video trial (C protocols)
     seeds: 10
     draws: 50
   dump_a:                        # member score matrices (REID_SCORES), 5 seeds,

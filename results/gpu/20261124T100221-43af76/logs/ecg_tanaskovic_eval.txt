@@ -1,0 +1,10 @@
+all16 day 1: A1 0.883 A2 0.852 A3 0.810
+all16 day 2: A1 0.810 A2 0.798 A3 0.754
+all16 B d1->d2: template 0.126, session top-1 0.188; B42 0.307
+paper8 day 1: A1 0.834 A2 0.802 A3 0.777
+paper8 day 2: A1 0.761 A2 0.744 A3 0.719
+paper8 B d1->d2: template 0.108, session top-1 0.143; B42 0.264
+all16_rel day 1: A1 0.698 A2 0.656 A3 0.638
+all16_rel day 2: A1 0.600 A2 0.581 A3 0.554
+all16_rel B d1->d2: template 0.127, session top-1 0.201; B42 0.316
+written /out/runs/20261124T103748_ecg_tanaskovic_rf.json in 117.6 s

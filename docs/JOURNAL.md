@@ -1169,6 +1169,8 @@ en local sur `sample/` (une personne : évaluations sautées, JSON écrit).
 
 **Prochaine étape** : job GPU `ecg_tk_eval`.
 
+---
+
 ## 2026-11-24 — Viser au-delà de 0,95 : scores des membres enregistrés pour fusionner hors ligne
 
 Toutes les pistes restantes pour dépasser `fuse_all5_eq` (0,950) sont des
@@ -1395,3 +1397,60 @@ identifiant) :
 - 06 : qui se trompe sur qui, et top-1 de chaque juge seul contre la fusion ;
 - 07 : progression 0,952 → 0,966 → 0,971 ;
 - 08 / 09 : personne absente (ci-dessus).
+
+---
+
+## 2026-11-24 — ECG de Tanasković : premiers résultats (GPU) et protocole corrigé
+
+**Job** `20261124T100221-43af76` (part `ecg_tk_eval`, 4 min, commit
+`5cdd8e1`). 7 362 gabarits avec points caractéristiques, 352 personnes,
+203 avec les deux jours. Forêt aléatoire par défaut, 16 caractéristiques :
+
+| protocole | jour 1 | jour 2 |
+|---|---|---|
+| A1 split aléatoire 33 % (papier) | 0,88 | 0,81 |
+| A2 dernier tiers de chaque bloc | 0,85 | 0,80 |
+| A3 yeux fermés → ouverts | 0,81 | 0,75 |
+| B jour 1 → jour 2, séance, 203 personnes | 0,19 [0,13-0,24] | |
+| B42 galeries de 42 | 0,31 | |
+
+Sous-ensemble de 8 du papier : 0,83 en A1 (papier : 97 %). Amplitudes / RQ :
+0,70 en A1, 0,20 en B.
+
+**Lecture** : reproduction partielle sur un jour (0,88 contre 97-99 %) ;
+effondrement entre deux jours, sous `b1_ecg_beat` (0,60) et la démographie
+(0,71) à galerie égale.
+
+**Défauts relevés dans le protocole et corrigés** :
+- A2 découpait chaque bloc séparément : la fin du bloc yeux ouverts (test)
+  précède le bloc yeux fermés (entraînement). Ajout d'`A2_strict` : dernier
+  tiers de la séance en test, tout ce qui précède en entraînement, ordre
+  vérifié dans le code (`check_forward`).
+- A3 yeux fermés → ouverts et B jour 2 → jour 1 entraînent sur des données
+  postérieures au test : marqués `backward`, gardés comme contrôle de
+  symétrie ; ajout d'A3 yeux ouverts → fermés (`forward`).
+- Égalités de scores comptées au rang moyen (un score constant ne donnait
+  pas le hasard) : départage en espérance, comme `reid.eval`.
+
+**Ajouts** : normalisation par jour (`*_zday`, z-score de chaque
+caractéristique sur toutes les personnes d'un jour, sans étiquette ; un
+z-score global ne change rien à une forêt aléatoire, vérifié) ; baselines
+internes : étiquettes mélangées, RR seul, `B_folds` (galeries = plis de
+`results/splits/folds.json`, comparables au leaderboard) et `LDA_folds`
+(même recette que `b3_lda`, apprise sur les autres personnes).
+
+**Ajouts (même jour, après discussion des hypothèses)** :
+- second segment façon papier (baseline → colère) : `--task anger` de
+  `scripts/ecg_tanaskovic_extract.py`, un gabarit par vidéo de colère
+  (`emotion_label == "colere"` des `metadata.json`, 3 vidéos de 10 s par
+  séance) : les 10 premiers battements dont le pic R tombe dans l'essai,
+  essai ± 5 s lu seul (lecture paresseuse du BDF), seuil de Pan-Tompkins
+  calculé sur ces 20 s. Moins de 10 battements (FC < ~60 bpm) : pas de
+  gabarit. Le papier en a 9 par segment de 2 min ; ici 3 au mieux.
+- protocoles C (un jour) : `C_pooled` (repos + colère, split aléatoire
+  stratifié 33 %, le split du papier sur ses deux segments),
+  `C_rest_to_anger`, `C_anger_to_rest` ;
+- métriques pondérées (précision, rappel, F1) en plus des macro ;
+- normalisation par rang dans chaque jour (`all16_qday`), pour B.
+Testé sur données synthétiques et sur un faux enregistrement vidéo fait du
+BDF de repos de P001.

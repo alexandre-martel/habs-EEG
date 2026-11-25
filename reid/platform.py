@@ -294,6 +294,18 @@ def _ecg_tanaskovic(data_dir: Path, out_dir: Path, job: dict, deadline: float) -
         except subprocess.TimeoutExpired:
             code = "timeout"
     summary = {"status": "ok" if code == 0 else f"exit {code}"}
+
+    # ``anger: true``: one template per anger video trial (emotion-video BDF,
+    # only the trials are read), to dest/anger_features.csv.
+    if job.get("anger"):
+        with (dest / "log_anger.txt").open("w") as log:
+            try:
+                acode = subprocess.run(cmd + ["--task", "anger"], cwd=REPO, stdout=log,
+                                       stderr=subprocess.STDOUT,
+                                       timeout=_remaining(deadline)).returncode
+            except subprocess.TimeoutExpired:
+                acode = "timeout"
+        summary["anger_status"] = "ok" if acode == 0 else f"exit {acode}"
     try:
         import pandas as pd
 
@@ -307,6 +319,14 @@ def _ecg_tanaskovic(data_dir: Path, out_dir: Path, job: dict, deadline: float) -
             "t_polarity_negative_share": round(float((f.T_polarity == -1).mean()), 3),
             "failed_files": len(pd.read_csv(dest / "failures.csv")),
         }
+        if (dest / "anger_features.csv").is_file() and (dest / "anger_features.csv").stat().st_size > 1:
+            g = pd.read_csv(dest / "anger_features.csv")
+            summary |= {
+                "anger_sessions": int(g.groupby(["participant_id", "day"]).ngroups),
+                "anger_trials": len(g),
+                "anger_templates_with_fiducials": int(g.fiducials_ok.sum()),
+                "anger_failed_files": len(pd.read_csv(dest / "anger_failures.csv")),
+            }
     except Exception as err:  # noqa: BLE001 - the summary must not hide the status
         summary["summary_error"] = repr(err)
     print(f"ecg_tanaskovic: {summary}", flush=True)
@@ -322,6 +342,8 @@ def _ecg_tanaskovic(data_dir: Path, out_dir: Path, job: dict, deadline: float) -
                "--features", str(dest / "features.csv"),
                "--out", str(runs / f"{stamp}_ecg_tanaskovic_rf.json"),
                "--seeds", str(job.get("seeds", 10)), "--draws", str(job.get("draws", 50))]
+        if (dest / "anger_features.csv").is_file():
+            cmd += ["--anger", str(dest / "anger_features.csv")]
         logs = out_dir / "logs"
         logs.mkdir(parents=True, exist_ok=True)
         with (logs / "ecg_tanaskovic_eval.txt").open("w") as log:
