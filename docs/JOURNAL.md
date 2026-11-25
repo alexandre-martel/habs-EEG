@@ -1336,3 +1336,62 @@ transductif, rapporté à part) : 1,000.
 **Bilan de la journée** : repos seul, une graine 0,952 → ensemble de graines
 0,966 → + vidéo des mêmes séances 0,971-0,976. Les gains suivants ne sont plus
 mesurables avec ~165 personnes de validation et 208 de test.
+
+## 2026-11-25 — Personne absente au jour 1 (ensemble ouvert) ; figures pour les slides
+
+**Question** : si la personne sondée au jour 2 n'a pas été enregistrée au
+jour 1, voit-on qu'aucune personne de la galerie ne correspond ?
+
+**Méthode** (`scripts/reid_open_set.py`, `tests/reid/test_open_set.py`) :
+- *Simulation sur le modèle retenu* (11 membres, toutes les graines, scores
+  commités) : chaque sonde est jouée deux fois, avec puis sans sa séance du
+  jour 1 dans la galerie. Sans elle, la case est exclue de toutes les
+  normalisations (membre et graines), comme si elle n'avait jamais été là.
+  Statistique : meilleur score fusionné (z), écart entre les deux meilleurs,
+  ou nombre de juges d'accord avec le choix final.
+- Seuil fixé sur la validation interne (164 personnes), lu au test (208).
+  DIR = présente, classée première et au-dessus du seuil ; FPIR = absente et
+  au-dessus du seuil. IC par bootstrap sur les personnes.
+- *Vraies personnes absentes* : les 61 personnes qui n'ont que le jour 2
+  (distracteurs de leur pli) sondées contre la galerie jour 1 du pli, avec les
+  deux LDA du repos (seuls membres calculables en local).
+
+**Résultats** (test, 208 personnes ; `results/open_set.json`) :
+
+| critère | AUC présente / absente | seuil « ≤ 1 % d'absents » (val.) : DIR / FPIR au test | seuil « ≤ 5 % » : DIR / FPIR |
+|---|---|---|---|
+| meilleur score | **0,972** [0,957 ; 0,985] | **0,865** [0,817 ; 0,914] / **0,019** [0,005 ; 0,038] | 0,913 / 0,082 |
+| écart 1er - 2e | 0,965 | 0,726 / 0,005 | 0,851 / 0,063 |
+| vote des juges | 0,966 | 0,755 / 0,014 (≥ 6 juges) | 0,933 / 0,154 (≥ 4) |
+
+En ensemble fermé, le même modèle est à 0,971 : exiger un score au-dessus du
+seuil coûte 0,05 à 0,10 de personnes présentes rejetées, pour 2 à 8 %
+d'absents acceptés à tort. Chaque juge seul est bien plus faible (AUC
+0,46-0,83) : la fusion sert aussi à détecter l'absence.
+
+Vraies personnes absentes (LDA repos EEG + battement, top-1 fermé 0,870) :
+meilleur score 1,77 ± 0,47 contre 1,75 ± 0,41 pour les absents simulés
+(présents : 2,87 ± 0,78) ; AUC 0,873 (réels) contre 0,882 (simulés). La
+simulation représente donc bien une vraie personne absente.
+
+**Lecture** : oui, on voit en général qu'aucune personne ne correspond. Le
+meilleur score fusionné suffit, sans modèle supplémentaire. Le seuil est un
+compromis à choisir selon l'usage : à 2 % de fausses correspondances, 13 %
+des personnes présentes sont déclarées « inconnues ». Les galeries ne font que
+44 personnes ; avec une galerie plus grande, le meilleur score d'un absent
+monte (plus d'occasions de ressemblance), donc le seuil serait à refixer.
+
+**Figures pour les slides** (`scripts/reid_slide_figures.py`,
+`results/figures/slides/`, données réelles, personnes nommées A/B/C, aucun
+identifiant) :
+- 01 : signaux de trois personnes aux deux jours ;
+- 02 : fenêtres EEG avant / après LDA (t-SNE) ;
+- 03 : schéma de l'entraînement contrastif, avec de vrais battements ;
+- 04 : réseau EEG entraîné en local (CPU, pli 0, réglages du modèle final) :
+  courbes de perte et de validation, matrices de similarité avant / après
+  (28/41 → 34/41 au test du pli ; la validation plafonne dès le pas 50 alors
+  que la perte continue de baisser : c'est l'arrêt précoce qui choisit le pas) ;
+- 05 : matrices de scores de 4 juges et de la fusion (un pli de test) ;
+- 06 : qui se trompe sur qui, et top-1 de chaque juge seul contre la fusion ;
+- 07 : progression 0,952 → 0,966 → 0,971 ;
+- 08 / 09 : personne absente (ci-dessus).

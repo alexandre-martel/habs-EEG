@@ -1,0 +1,260 @@
+{
+ "n_val": 164,
+ "n_test": 208,
+ "top": {
+  "auc_val": 0.974,
+  "auc_test": 0.9723,
+  "auc_test_ci": [
+   0.9572,
+   0.9848
+  ],
+  "fpir5": {
+   "threshold": 1.598,
+   "dir": 0.9135,
+   "present_rejected": 0.0769,
+   "fpir": 0.0817,
+   "dir_ci": [
+    0.875,
+    0.9519
+   ],
+   "fpir_ci": [
+    0.0481,
+    0.1202
+   ]
+  },
+  "fpir1": {
+   "threshold": 1.77,
+   "dir": 0.8654,
+   "present_rejected": 0.1298,
+   "fpir": 0.0192,
+   "dir_ci": [
+    0.8173,
+    0.9135
+   ],
+   "fpir_ci": [
+    0.0048,
+    0.0385
+   ]
+  },
+  "eer": {
+   "threshold": 1.561,
+   "dir": 0.9183,
+   "present_rejected": 0.0721,
+   "fpir": 0.1058,
+   "dir_ci": [
+    0.8798,
+    0.9519
+   ],
+   "fpir_ci": [
+    0.0625,
+    0.1538
+   ]
+  }
+ },
+ "margin": {
+  "auc_val": 0.9595,
+  "auc_test": 0.9647,
+  "auc_test_ci": [
+   0.9452,
+   0.9815
+  ],
+  "fpir5": {
+   "threshold": 0.736,
+   "dir": 0.851,
+   "present_rejected": 0.1442,
+   "fpir": 0.0625,
+   "dir_ci": [
+    0.8029,
+    0.899
+   ],
+   "fpir_ci": [
+    0.0337,
+    0.0962
+   ]
+  },
+  "fpir1": {
+   "threshold": 1.034,
+   "dir": 0.726,
+   "present_rejected": 0.2692,
+   "fpir": 0.0048,
+   "dir_ci": [
+    0.6635,
+    0.7838
+   ],
+   "fpir_ci": [
+    0.0,
+    0.0144
+   ]
+  },
+  "eer": {
+   "threshold": 0.591,
+   "dir": 0.9135,
+   "present_rejected": 0.0817,
+   "fpir": 0.0865,
+   "dir_ci": [
+    0.875,
+    0.9519
+   ],
+   "fpir_ci": [
+    0.0481,
+    0.1298
+   ]
+  }
+ },
+ "agree": {
+  "auc_val": 0.967,
+  "auc_test": 0.9655,
+  "auc_test_ci": [
+   0.9468,
+   0.9807
+  ],
+  "fpir5": {
+   "threshold": 4.0,
+   "dir": 0.9327,
+   "present_rejected": 0.0577,
+   "fpir": 0.1538,
+   "dir_ci": [
+    0.899,
+    0.9663
+   ],
+   "fpir_ci": [
+    0.1058,
+    0.2067
+   ]
+  },
+  "fpir1": {
+   "threshold": 6.0,
+   "dir": 0.7548,
+   "present_rejected": 0.2404,
+   "fpir": 0.0144,
+   "dir_ci": [
+    0.6971,
+    0.8125
+   ],
+   "fpir_ci": [
+    0.0,
+    0.0337
+   ]
+  },
+  "eer": {
+   "threshold": 5.0,
+   "dir": 0.8894,
+   "present_rejected": 0.101,
+   "fpir": 0.0481,
+   "dir_ci": [
+    0.8413,
+    0.9327
+   ],
+   "fpir_ci": [
+    0.0192,
+    0.0817
+   ]
+  }
+ },
+ "closed_set_top1": 0.9712,
+ "per_judge": [
+  {
+   "judge": "LDA EEG (repos)",
+   "top1_test": 0.7837,
+   "auc_top_val": 0.8185,
+   "auc_top_test": 0.8293
+  },
+  {
+   "judge": "LDA battement (repos)",
+   "top1_test": 0.6875,
+   "auc_top_val": 0.7584,
+   "auc_top_test": 0.734
+  },
+  {
+   "judge": "réseau EEG (repos)",
+   "top1_test": 0.7644,
+   "auc_top_val": 0.7609,
+   "auc_top_test": 0.7367
+  },
+  {
+   "judge": "réseau battement (repos)",
+   "top1_test": 0.7163,
+   "auc_top_val": 0.7489,
+   "auc_top_test": 0.7214
+  },
+  {
+   "judge": "réseau respiration (repos)",
+   "top1_test": 0.4327,
+   "auc_top_val": 0.6181,
+   "auc_top_test": 0.5647
+  },
+  {
+   "judge": "réseau EEG (vidéo)",
+   "top1_test": 0.7596,
+   "auc_top_val": 0.7757,
+   "auc_top_test": 0.7156
+  },
+  {
+   "judge": "réseau battement (vidéo)",
+   "top1_test": 0.7356,
+   "auc_top_val": 0.7681,
+   "auc_top_test": 0.7541
+  },
+  {
+   "judge": "réseau respiration (vidéo)",
+   "top1_test": 0.6106,
+   "auc_top_val": 0.6152,
+   "auc_top_test": 0.6188
+  },
+  {
+   "judge": "LDA EEG (vidéo)",
+   "top1_test": 0.774,
+   "auc_top_val": 0.8525,
+   "auc_top_test": 0.8068
+  },
+  {
+   "judge": "LDA battement (vidéo)",
+   "top1_test": 0.7548,
+   "auc_top_val": 0.801,
+   "auc_top_test": 0.7452
+  },
+  {
+   "judge": "LDA respiration (vidéo)",
+   "top1_test": 0.149,
+   "auc_top_val": 0.4638,
+   "auc_top_test": 0.4602
+  }
+ ],
+ "real_absent_rest_lda": {
+  "n_present": 208,
+  "n_real_absent": 61,
+  "top": {
+   "auc_simulated": 0.8823,
+   "auc_real": 0.873,
+   "simulated_mean_sd": [
+    1.752,
+    0.409
+   ],
+   "real_mean_sd": [
+    1.773,
+    0.47
+   ],
+   "present_mean_sd": [
+    2.874,
+    0.78
+   ]
+  },
+  "margin": {
+   "auc_simulated": 0.8515,
+   "auc_real": 0.839,
+   "simulated_mean_sd": [
+    0.387,
+    0.379
+   ],
+   "real_mean_sd": [
+    0.429,
+    0.446
+   ],
+   "present_mean_sd": [
+    1.444,
+    0.873
+   ]
+  },
+  "closed_set_top1": 0.8702
+ }
+}
