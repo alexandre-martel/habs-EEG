@@ -1,0 +1,57 @@
+{
+ "job": {
+  "job": "ecg_tanaskovic",
+  "tasks": [
+   "rest"
+  ],
+  "modalities": [
+   "eeg",
+   "ecg",
+   "resp"
+  ],
+  "shard": "0/1",
+  "workers": 0,
+  "deadline_min": 52,
+  "eval_task": "rest",
+  "scenarios": [
+   "d1_to_d2"
+  ],
+  "part": "ecg_tk_eval",
+  "days": [
+   1,
+   2
+  ],
+  "evaluate": true,
+  "anger": true,
+  "seeds": 10,
+  "draws": 50
+ },
+ "hardware": {
+  "cpus": 40,
+  "python": "3.12.3",
+  "ram_gb": 337.9,
+  "tmp_free_gb": 27.6,
+  "torch": "2.14.1+cu126",
+  "cuda": true,
+  "gpu": "NVIDIA H100 NVL"
+ },
+ "timings_s": {
+  "total": 998.5
+ },
+ "ecg_tanaskovic": {
+  "status": "ok",
+  "anger_status": "ok",
+  "sessions": 558,
+  "participants": 353,
+  "participants_both_days": 205,
+  "templates": 7752,
+  "templates_with_fiducials": 7362,
+  "t_polarity_negative_share": 0.837,
+  "failed_files": 0,
+  "anger_sessions": 568,
+  "anger_trials": 2434,
+  "anger_templates_with_fiducials": 2208,
+  "anger_failed_files": 0,
+  "evaluation": "ok"
+ }
+}

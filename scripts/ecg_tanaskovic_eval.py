@@ -13,6 +13,12 @@ hyperparameters, one class per participant, features as extracted
 (Bazett-corrected intervals). Templates without all fiducial points are
 dropped.
 
+Every protocol reports, besides per-template metrics, per-session ranks:
+for each tested session, class probabilities are averaged over its
+templates, people are ranked from most to least probable, and rank 1 /
+rank 5 (session_top1 / session_top5) give the share of sessions whose true
+person is first / in the first five (chance: 1/N and 5/N).
+
 Protocols ("forward" = training data recorded before test data)
 ---------------------------------------------------------------
 A, one day (the paper's conditions), day 1 and day 2 separately:
@@ -175,7 +181,12 @@ def fit_score(train, test, cols, seed) -> dict:
     m = rf(seed).fit(train[cols].to_numpy(), train.pid.to_numpy())
     out = template_metrics(test.pid.to_numpy(), m.predict(test[cols].to_numpy()))
     n = train.pid.nunique()
-    return out | {"n_classes": n, "chance": 1 / n, "n_train": len(train), "n_test": len(test),
+    # per session (one per person here: a single day is tested): probabilities
+    # averaged over the person's test templates, then rank 1 / rank 5
+    known = test[test.pid.isin(m.classes_)]
+    out |= rank_metrics(session_ranks(m, known, cols), np.random.default_rng(seed))
+    return out | {"n_classes": n, "chance": 1 / n, "chance_top5": min(5 / n, 1.0),
+                  "n_train": len(train), "n_test": len(test),
                   "importance": dict(zip(cols, m.feature_importances_.round(4).tolist()))}
 
 
@@ -183,7 +194,7 @@ def mean_sd(runs: list[dict]) -> dict:
     keys = [k for k in runs[0] if isinstance(runs[0][k], (int, float, np.floating))]
     out = {k: float(np.mean([r[k] for r in runs])) for k in keys}
     out |= {k + "_sd": float(np.std([r[k] for r in runs])) for k in
-            ("accuracy", "f1_weighted", "f1_macro", "session_top1") if k in out}
+            ("accuracy", "f1_weighted", "f1_macro", "session_top1", "session_top5") if k in out}
     if "importance" in runs[0]:
         imp = pd.DataFrame([r["importance"] for r in runs]).mean().sort_values(ascending=False)
         out["importance"] = imp.round(4).to_dict()
@@ -318,7 +329,8 @@ def b(f, cols, seeds) -> dict:
             m = rf(s).fit(tr[cols].to_numpy(), tr.pid.to_numpy())
             r = template_metrics(te.pid.to_numpy(), m.predict(te[cols].to_numpy()))
             n = tr.pid.nunique()
-            r |= {"n_classes": n, "chance": 1 / n, "n_train": len(tr), "n_test": len(te),
+            r |= {"n_classes": n, "chance": 1 / n, "chance_top5": min(5 / n, 1.0),
+                  "n_train": len(tr), "n_test": len(te),
                   "importance": dict(zip(cols, m.feature_importances_.round(4)))}
             runs.append(r | rank_metrics(session_ranks(m, te, cols), np.random.default_rng(s)))
         out[name] = mean_sd(runs) | {"direction": "forward" if ga < pr else "backward"}
@@ -345,6 +357,7 @@ def b42(f, cols, n_draws: int) -> dict:
                                                          tr.pid.to_numpy()), te, cols)))
     top1 = [r["session_top1"] for r in runs]
     return mean_sd(runs) | {"gallery": min(GALLERY, len(pids)), "chance": 1 / GALLERY,
+                            "chance_top5": 5 / GALLERY,
                             "session_top1_p2.5": float(np.percentile(top1, 2.5)),
                             "session_top1_p97.5": float(np.percentile(top1, 97.5))}
 
@@ -362,6 +375,7 @@ def pooled(ranks: list[np.ndarray], gallery: list[int], seed=0) -> dict:
     r = np.concatenate(ranks)
     return rank_metrics(r, np.random.default_rng(seed)) | {
         "chance": float(np.mean([1 / g for g in gallery])),
+        "chance_top5": float(np.mean([min(5 / g, 1.0) for g in gallery])),
         "gallery_mean": float(np.mean(gallery)), "folds": len(ranks)}
 
 
@@ -468,6 +482,9 @@ def main() -> None:
                 res[f"A2_day{day}"] = a2(one, cols, seeds)
                 res[f"A2_strict_day{day}"] = a2_strict(one, cols, seeds)
                 res[f"A3_day{day}"] = a3(one, cols, seeds)
+                r1 = res[f"A1_day{day}"]
+                print(f"{name} day {day}: A1 sessions rank 1 {r1['session_top1']:.3f} "
+                      f"rank 5 {r1['session_top5']:.3f}", flush=True)
                 print(f"{name} day {day}: A1 {res[f'A1_day{day}']['accuracy']:.3f} "
                       f"A2 {res[f'A2_day{day}']['accuracy']:.3f} "
                       f"A2_strict {res[f'A2_strict_day{day}']['accuracy']:.3f} "
@@ -479,12 +496,15 @@ def main() -> None:
                     c = res[f"C_day{day}"]
                     print(f"{name} day {day}: C pooled {c['C_pooled']['accuracy']:.3f} "
                           f"rest->anger {c['C_rest_to_anger']['accuracy']:.3f} "
-                          f"anger->rest {c['C_anger_to_rest']['accuracy']:.3f}", flush=True)
+                          f"anger->rest {c['C_anger_to_rest']['accuracy']:.3f}; rest->anger "
+                          f"sessions rank 1 {c['C_rest_to_anger']['session_top1']:.3f} "
+                          f"rank 5 {c['C_rest_to_anger']['session_top5']:.3f}", flush=True)
         if two_days:
             res["B"] = b(f, cols, seeds)
             res["B42"] = b42(f, cols, a.draws)
             msg = (f"{name} B d1->d2: template {res['B']['d1_to_d2']['accuracy']:.3f}, "
                    f"session top-1 {res['B']['d1_to_d2']['session_top1']:.3f} "
+                   f"top-5 {res['B']['d1_to_d2']['session_top5']:.3f} "
                    f"(shuffled {res['B']['shuffled_labels_session_top1']:.3f}); "
                    f"B42 {res['B42']['session_top1']:.3f}")
             if folds:

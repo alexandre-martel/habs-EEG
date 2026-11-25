@@ -1476,3 +1476,28 @@ brutes), `beat_z` (chaque gabarit centré-réduit : la forme seule, comme
 `b1_ecg_beat`), `beat_z_all16` (forme + 16 caractéristiques). Mêmes
 protocoles A, C, B, B_folds, LDA_folds. Testé sur données synthétiques et
 sur le faux enregistrement vidéo (P001).
+
+---
+
+## 2026-11-26 — ECG de Tanasković : forme complète du battement ; rang 5 partout (code)
+
+**Job** `20261125T231620-25b3ce` (part `ecg_tk_eval`, 17 min, commit
+`28a62c9`), résultats dans `results/gpu/`. Même forêt, mêmes gabarits :
+
+| valeurs | A1 jour 1 | repos → colère j1 | forêt plis r1 / r5 | LDA plis r1 / r5 |
+|---|---|---|---|---|
+| 16 caractéristiques | 0,88 | 0,64 | 0,31 / 0,59 | 0,31 / 0,57 |
+| forme, amplitudes réelles | 0,92 | 0,78 | 0,47 / 0,67 | 0,55 / 0,72 |
+| forme seule (centrée-réduite) | 0,84 | 0,76 | 0,49 / 0,70 | 0,56 / 0,73 |
+| forme seule + 16 | 0,93 | 0,80 | 0,51 / 0,70 | 0,60 / 0,73 |
+
+Lecture : les 16 caractéristiques perdent une bonne part de l'identité
+(environ un quart de l'importance de la forêt sur la forme est dans la zone
+de l'onde P, non décrite par les 16) ; la LDA dépasse la forêt sur la forme ;
+l'amplitude aide dans la séance mais pas entre deux jours. Meilleur résultat
+(0,60) sous la démographie (0,71) et la LDA de la forme moyenne du
+leaderboard (0,69).
+
+**Ajout** : rang 1 et rang 5 par séance (`session_top1`, `session_top5`,
+`chance_top5`) pour tous les protocoles, y compris sur un jour (A1-A3, C),
+où la « séance testée » est l'ensemble des gabarits de test de la personne.

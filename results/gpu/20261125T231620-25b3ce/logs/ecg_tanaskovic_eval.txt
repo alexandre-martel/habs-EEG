@@ -1,0 +1,35 @@
+all16 day 1: A1 0.883 A2 0.852 A2_strict 0.867 A3 eo->ec 0.812
+all16 day 1: C pooled 0.862 rest->anger 0.641 anger->rest 0.563
+all16 day 2: A1 0.810 A2 0.798 A2_strict 0.806 A3 eo->ec 0.745
+all16 day 2: C pooled 0.790 rest->anger 0.619 anger->rest 0.507
+all16 B d1->d2: template 0.126, session top-1 0.189 (shuffled 0.010); B42 0.307; B_folds 0.314; LDA_folds 0.305
+paper8 day 1: A1 0.834 A2 0.802 A2_strict 0.819 A3 eo->ec 0.775
+paper8 day 1: C pooled 0.808 rest->anger 0.586 anger->rest 0.532
+paper8 day 2: A1 0.761 A2 0.744 A2_strict 0.747 A3 eo->ec 0.696
+paper8 day 2: C pooled 0.736 rest->anger 0.544 anger->rest 0.473
+paper8 B d1->d2: template 0.108, session top-1 0.143 (shuffled 0.006); B42 0.265; B_folds 0.295; LDA_folds 0.241
+all16_rel day 1: A1 0.698 A2 0.656 A2_strict 0.677 A3 eo->ec 0.616
+all16_rel day 2: A1 0.600 A2 0.581 A2_strict 0.596 A3 eo->ec 0.534
+all16_rel B d1->d2: template 0.127, session top-1 0.202 (shuffled 0.008); B42 0.317; B_folds 0.338; LDA_folds 0.291
+all16_zday B d1->d2: template 0.038, session top-1 0.055 (shuffled 0.005); B42 0.163; B_folds 0.162; LDA_folds 0.222
+all16_rel_zday B d1->d2: template 0.064, session top-1 0.080 (shuffled 0.005); B42 0.126; B_folds 0.146; LDA_folds 0.271
+all16_qday B d1->d2: template 0.107, session top-1 0.147 (shuffled 0.003); B42 0.292; B_folds 0.311; LDA_folds 0.409
+rr_only day 1: A1 0.064 A2 0.052 A2_strict 0.058 A3 eo->ec 0.051
+rr_only day 2: A1 0.067 A2 0.069 A2_strict 0.056 A3 eo->ec 0.058
+rr_only B d1->d2: template 0.011, session top-1 0.025 (shuffled 0.013); B42 0.076; B_folds 0.105
+beat day 1: A1 0.921 A2 0.901 A2_strict 0.913 A3 eo->ec 0.869
+beat day 1: C pooled 0.907 rest->anger 0.778 anger->rest 0.673
+beat day 2: A1 0.860 A2 0.850 A2_strict 0.845 A3 eo->ec 0.792
+beat day 2: C pooled 0.853 rest->anger 0.765 anger->rest 0.618
+beat B d1->d2: template 0.233, session top-1 0.347 (shuffled 0.010); B42 0.436; B_folds 0.473; LDA_folds 0.552
+beat_z day 1: A1 0.840 A2 0.811 A2_strict 0.823 A3 eo->ec 0.765
+beat_z day 1: C pooled 0.844 rest->anger 0.762 anger->rest 0.573
+beat_z day 2: A1 0.737 A2 0.720 A2_strict 0.719 A3 eo->ec 0.665
+beat_z day 2: C pooled 0.759 rest->anger 0.739 anger->rest 0.528
+beat_z B d1->d2: template 0.230, session top-1 0.370 (shuffled 0.006); B42 0.465; B_folds 0.489; LDA_folds 0.562
+beat_z_all16 day 1: A1 0.934 A2 0.913 A2_strict 0.924 A3 eo->ec 0.885
+beat_z_all16 day 1: C pooled 0.920 rest->anger 0.796 anger->rest 0.645
+beat_z_all16 day 2: A1 0.871 A2 0.873 A2_strict 0.869 A3 eo->ec 0.804
+beat_z_all16 day 2: C pooled 0.867 rest->anger 0.768 anger->rest 0.608
+beat_z_all16 B d1->d2: template 0.245, session top-1 0.384 (shuffled 0.005); B42 0.474; B_folds 0.515; LDA_folds 0.601
+written /out/runs/20261125T232408_ecg_tanaskovic_rf.json in 540.5 s
