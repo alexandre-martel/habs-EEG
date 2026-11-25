@@ -1301,3 +1301,38 @@ Fusion hors ligne avec les scores de repos (`dump_a`, `dump_c`), poids
 Choix sur la validation (top-1 puis MRR) : 8 membres. Écart apparié avec le
 modèle précédent : +0,0096 [0,000 ; +0,024], 2 erreurs corrigées, aucune
 créée (5 erreurs sur 208). Hungarian 0,990.
+
+## 2026-11-25 — LDA sur la vidéo ; plafond de la validation atteint (~0,97-0,98)
+
+**Job** `20261124T234226-eb178c` (part `dump_w`, 52 min ; extraction
+caractéristiques + brut, repos + vidéo : 552 s ; graine vidéo 3 de nouveau
+arrêtée à 52 min, graines 5 et 6 complètes). LDA sur les caractéristiques
+vidéo, validation interne par pli : EEG 0,76-0,94, battement 0,73-0,91
+(14 min de battements contre 1,5 min), respiration 0,12-0,27 (statistiques de
+respiration : faibles, comme au repos). LDA vidéo seules (3, poids égaux) :
+0,933 [0,899 ; 0,962] au test.
+
+Fusion hors ligne, poids égaux, z-score ; validation poolée (164 sondes) :
+
+| fusion | validation | MRR | test top-1 [IC 95 %] |
+|---|---|---|---|
+| repos `all5`, 10 graines | 0,957 | 0,972 | 0,966 [0,938 ; 0,986] |
+| repos + 3 encodeurs vidéo, 4-5 graines | 0,970 | 0,981 | 0,976 [0,952 ; 0,995] |
+| vidéo seule : 3 encodeurs + 3 LDA | **0,976** | 0,9837 | 0,966 [0,938 ; 0,986] |
+| repos + 3 encodeurs vidéo + 3 LDA vidéo (11 membres), 10 graines | **0,976** | 0,9837 | 0,971 [0,947 ; 0,990] |
+| idem, 5 graines | **0,976** | 0,9835 | 0,976 [0,952 ; 0,995] |
+
+La validation ne départage plus : 4 erreurs sur 164 pour toutes les
+variantes avec la vidéo et ses LDA, écarts de MRR de 1e-4. Au test, ces
+variantes à égalité donnent 0,966-0,976 (5 à 7 erreurs sur 208) : c'est la
+résolution du protocole (une personne = 0,005), pas une différence de
+modèle. Plutôt qu'un départage au bruit, le modèle retenu est fixé sans choix
+parmi les égalités : **tous les membres, toutes les graines** (repos `all5`
++ 3 encodeurs vidéo + 3 LDA vidéo, 10 graines au repos et 6 en vidéo),
+**0,971 [0,947 ; 0,990]** au test, +0,005 apparié sur le modèle repos seul
+(1 erreur corrigée, aucune créée). Hungarian (appariement un à un,
+transductif, rapporté à part) : 1,000.
+
+**Bilan de la journée** : repos seul, une graine 0,952 → ensemble de graines
+0,966 → + vidéo des mêmes séances 0,971-0,976. Les gains suivants ne sont plus
+mesurables avec ~165 personnes de validation et 208 de test.
